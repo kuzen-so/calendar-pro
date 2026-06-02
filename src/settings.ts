@@ -34,7 +34,7 @@ export class HeatmapSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "日历带热力图设置" });
+    containerEl.createEl("h2", { text: "Calendar Pro 设置" });
 
     new Setting(containerEl)
       .setName("使用自定义日记配置")
