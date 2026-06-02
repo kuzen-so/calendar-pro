@@ -1,0 +1,11 @@
+{
+	"id": "diary-heatmap",
+	"name": "日记热力图",
+	"version": "1.3.0",
+	"minAppVersion": "0.15.0",
+	"description": "根据 Obsidian 日记自动生成热力图，支持自动读取 Daily Notes 配置",
+	"author": "Diary Heatmap Plugin",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}

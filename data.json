@@ -1,0 +1,13 @@
+{
+  "thresholds": [
+    100,
+    300,
+    600,
+    1000
+  ],
+  "defaultYear": "current",
+  "customFolder": "",
+  "customFormat": "YYYY-MM-DD",
+  "useCustomConfig": false,
+  "heatmapRows": 11
+}

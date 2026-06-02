@@ -1,0 +1,103 @@
+import { Plugin } from "obsidian";
+import { HeatmapSettings, DEFAULT_SETTINGS, HeatmapSettingTab } from "./settings";
+import { HeatmapView, VIEW_TYPE_DIARY_HEATMAP } from "./ui/heatmap-view";
+import { getDailyNotesConfig, DailyNotesConfig } from "./utils/daily-notes-config";
+
+export default class DiaryHeatmapPlugin extends Plugin {
+  settings: HeatmapSettings;
+
+  async onload(): Promise<void> {
+    await this.loadSettings();
+    console.log("[Diary Heatmap] Plugin loaded v1.2.0");
+
+    this.registerView(
+      VIEW_TYPE_DIARY_HEATMAP,
+      (leaf) => new HeatmapView(leaf, this)
+    );
+
+    this.addRibbonIcon("calendar", "日记热力图", () => {
+      this.activateHeatmapView();
+    });
+
+    this.addCommand({
+      id: "open-diary-heatmap",
+      name: "打开日记热力图",
+      callback: () => {
+        this.activateHeatmapView();
+      },
+    });
+
+    this.addCommand({
+      id: "close-diary-heatmap",
+      name: "关闭日记热力图",
+      callback: () => {
+        this.closeHeatmapView();
+      },
+    });
+
+    this.addSettingTab(new HeatmapSettingTab(this.app, this));
+
+    if (this.app.workspace.layoutReady) {
+      this.initLeaf();
+    } else {
+      this.registerEvent(
+        this.app.workspace.on("layout-ready", () => {
+          this.initLeaf();
+        })
+      );
+    }
+  }
+
+  onunload(): void {
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
+    console.log("[Diary Heatmap] Plugin unloaded");
+  }
+
+  async loadSettings(): Promise<void> {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
+
+  private initLeaf(): void {
+    const { workspace } = this.app;
+    if (workspace.getLeavesOfType(VIEW_TYPE_DIARY_HEATMAP).length > 0) {
+      return;
+    }
+    workspace.getRightLeaf(false).setViewState({
+      type: VIEW_TYPE_DIARY_HEATMAP,
+    });
+  }
+
+  async activateHeatmapView(): Promise<void> {
+    const { workspace } = this.app;
+    const leaves = workspace.getLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
+    if (leaves.length > 0) {
+      workspace.revealLeaf(leaves[0]);
+      return;
+    }
+    const leaf = workspace.getRightLeaf(false);
+    await leaf.setViewState({
+      type: VIEW_TYPE_DIARY_HEATMAP,
+      active: true,
+    });
+    workspace.revealLeaf(leaf);
+  }
+
+  closeHeatmapView(): void {
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
+  }
+
+  async getEffectiveConfig(): Promise<DailyNotesConfig> {
+    if (this.settings.useCustomConfig) {
+      return {
+        folder: this.settings.customFolder,
+        format: this.settings.customFormat,
+        template: "",
+      };
+    }
+    return await getDailyNotesConfig(this.app);
+  }
+}
