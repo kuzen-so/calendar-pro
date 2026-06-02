@@ -8,7 +8,7 @@ export default class DiaryHeatmapPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    console.log("[Diary Heatmap] Plugin loaded v1.2.0");
+    console.log("[Diary Heatmap] Plugin loaded v1.3.0");
 
     this.registerView(
       VIEW_TYPE_DIARY_HEATMAP,
@@ -32,6 +32,26 @@ export default class DiaryHeatmapPlugin extends Plugin {
       name: "关闭日记热力图",
       callback: () => {
         this.closeHeatmapView();
+      },
+    });
+
+    this.addCommand({
+      id: "jump-to-today",
+      name: "跳转到今天",
+      callback: () => {
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
+        if (leaves.length > 0) {
+          const view = leaves[0].view as HeatmapView;
+          view.jumpToToday();
+        } else {
+          this.activateHeatmapView().then(() => {
+            const newLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
+            if (newLeaves.length > 0) {
+              const view = newLeaves[0].view as HeatmapView;
+              view.jumpToToday();
+            }
+          });
+        }
       },
     });
 

@@ -11,10 +11,17 @@ export interface HeatmapDayData {
 
 /**
  * 统计字数：中文字符 + 英文单词
+ * 优化：先检查是否有 frontmatter，避免无意义的全局替换
  */
 export function countWords(content: string): number {
-  const withoutFrontmatter = content.replace(/^---\s*[\s\S]*?---\s*/, "");
-  const cleanText = withoutFrontmatter
+  let text = content;
+  if (text.startsWith("---")) {
+    const end = text.indexOf("---", 3);
+    if (end !== -1) {
+      text = text.slice(end + 3).trimStart();
+    }
+  }
+  const cleanText = text
     .replace(/[#*\-\[\]\(\)!|`>_]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -102,6 +109,7 @@ export class DataCache {
 
   /**
    * 批量获取日期范围的数据
+   * 优化：使用 Promise.all 并行加载，避免顺序 await 导致的一年 365 次串行 IO
    */
   async getRangeData(
     config: DailyNotesConfig,
@@ -109,26 +117,47 @@ export class DataCache {
     end: moment.Moment,
     yearFilter?: number
   ): Promise<HeatmapDayData[]> {
-    const result: HeatmapDayData[] = [];
+    const dates: { date: moment.Moment; dateStr: string; inYear: boolean }[] = [];
     const current = start.clone();
 
     while (current.isSameOrBefore(end, "day")) {
       const dateStr = current.format("YYYY-MM-DD");
       const inYear = yearFilter !== undefined ? current.year() === yearFilter : true;
-
-      if (inYear) {
-        const { wordCount, exists, filePath } = await this.getDayData(current, config);
-        result.push({ date: dateStr, wordCount, exists, filePath, inYear });
-      } else {
-        const filePath = getDiaryFilePath(current, config);
-        result.push({ date: dateStr, wordCount: 0, exists: false, filePath, inYear: false });
-      }
-
+      dates.push({ date: current.clone(), dateStr, inYear });
       current.add(1, "day");
     }
 
-    return result;
+    const results = await Promise.all(
+      dates.map(async ({ date, dateStr, inYear }) => {
+        if (inYear) {
+          const { wordCount, exists, filePath } = await this.getDayData(date, config);
+          return { date: dateStr, wordCount, exists, filePath, inYear };
+        } else {
+          const filePath = getDiaryFilePath(date, config);
+          return { date: dateStr, wordCount: 0, exists: false, filePath, inYear: false };
+        }
+      })
+    );
+
+    return results;
   }
+}
+
+/**
+ * 根据自定义周开始日计算周的边界
+ */
+function getWeekBoundary(
+  date: moment.Moment,
+  weekStart: number,
+  isEnd: boolean
+): moment.Moment {
+  const day = date.day(); // 0=周日, 1=周一, ...
+  const diff = (day - weekStart + 7) % 7;
+  const start = date.clone().subtract(diff, "days");
+  if (isEnd) {
+    return start.add(6, "days");
+  }
+  return start;
 }
 
 /**
@@ -137,12 +166,13 @@ export class DataCache {
 export async function getYearHeatmapData(
   cache: DataCache,
   config: DailyNotesConfig,
-  year: number
+  year: number,
+  weekStart = 1
 ): Promise<HeatmapDayData[]> {
   const startOfYear = window.moment(`${year}-01-01`, "YYYY-MM-DD");
   const endOfYear = window.moment(`${year}-12-31`, "YYYY-MM-DD");
-  const start = startOfYear.clone().startOf("week");
-  const end = endOfYear.clone().endOf("week");
+  const start = getWeekBoundary(startOfYear, weekStart, false);
+  const end = getWeekBoundary(endOfYear, weekStart, true);
   return cache.getRangeData(config, start, end, year);
 }
 
@@ -151,27 +181,37 @@ export async function getYearHeatmapData(
  */
 export async function getRecentYearHeatmapData(
   cache: DataCache,
-  config: DailyNotesConfig
+  config: DailyNotesConfig,
+  weekStart = 1
 ): Promise<HeatmapDayData[]> {
   const endDate = window.moment();
   const startDate = endDate.clone().subtract(1, "year").add(1, "day");
-  const start = startDate.clone().startOf("week");
-  const end = endDate.clone().endOf("week");
+  const start = getWeekBoundary(startDate, weekStart, false);
+  const end = getWeekBoundary(endDate, weekStart, true);
   return cache.getRangeData(config, start, end);
 }
 
 /**
  * 获取指定月份的热力图数据
+ * 始终覆盖 6 周（42 天），确保日历固定显示 6 行
  */
 export async function getMonthHeatmapData(
   cache: DataCache,
   config: DailyNotesConfig,
   year: number,
-  month: number
+  month: number,
+  weekStart = 1
 ): Promise<HeatmapDayData[]> {
   const startOfMonth = window.moment([year, month]);
   const endOfMonth = startOfMonth.clone().endOf("month");
-  const start = startOfMonth.clone().startOf("week");
-  const end = endOfMonth.clone().endOf("week").add(1, "week");
+  const start = getWeekBoundary(startOfMonth, weekStart, false);
+  let end = getWeekBoundary(endOfMonth, weekStart, true);
+
+  const minDays = 42;
+  const actualDays = end.diff(start, "days") + 1;
+  if (actualDays < minDays) {
+    end = end.clone().add(minDays - actualDays, "days");
+  }
+
   return cache.getRangeData(config, start, end);
 }

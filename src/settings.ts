@@ -7,14 +7,20 @@ export interface HeatmapSettings {
   customFolder: string;
   customFormat: string;
   useCustomConfig: boolean;
+  weeklyFolder: string;
+  weekStart: number;
+  showWeekNumbers: boolean;
 }
 
 export const DEFAULT_SETTINGS: HeatmapSettings = {
-  thresholds: [100, 300, 600, 1000],
+  thresholds: [50, 150, 300, 500],
   defaultYear: "current",
   customFolder: "",
   customFormat: "YYYY-MM-DD",
   useCustomConfig: false,
+  weeklyFolder: "",
+  weekStart: 1,
+  showWeekNumbers: true,
 };
 
 export class HeatmapSettingTab extends PluginSettingTab {
@@ -85,27 +91,51 @@ export class HeatmapSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "热力图字数阈值" });
-    containerEl.createEl("p", {
-      text: "设置每个颜色等级对应的字数上限",
-      cls: "setting-item-description",
-    });
+    new Setting(containerEl)
+      .setName("周记文件夹")
+      .setDesc("周记存放的文件夹路径，留空则与日记共用同一文件夹")
+      .addText((text) =>
+        text
+          .setPlaceholder("例如: Weekly 或 周记")
+          .setValue(this.plugin.settings.weeklyFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.weeklyFolder = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
-    const levels = ["浅", "中", "深", "最深"];
-    this.plugin.settings.thresholds.forEach((threshold, index) => {
-      new Setting(containerEl)
-        .setName(`等级 ${index + 1} (${levels[index]})`)
-        .setDesc(`字数 ≤ ${threshold} 时显示此颜色`)
-        .addSlider((slider) =>
-          slider
-            .setLimits(10, 5000, 10)
-            .setValue(threshold)
-            .setDynamicTooltip()
-            .onChange(async (value) => {
-              this.plugin.settings.thresholds[index] = value;
-              await this.plugin.saveSettings();
-            })
-        );
-    });
+    new Setting(containerEl)
+      .setName("周开始日")
+      .setDesc("日历视图以星期几作为一周的开始")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("0", "周日")
+          .addOption("1", "周一")
+          .addOption("2", "周二")
+          .addOption("3", "周三")
+          .addOption("4", "周四")
+          .addOption("5", "周五")
+          .addOption("6", "周六")
+          .setValue(String(this.plugin.settings.weekStart))
+          .onChange(async (value) => {
+            this.plugin.settings.weekStart = parseInt(value);
+            await this.plugin.saveSettings();
+            window.moment.updateLocale(window.moment.locale(), {
+              week: { dow: parseInt(value) },
+            });
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("展现周数")
+      .setDesc("在日历视图左侧显示周数标签")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showWeekNumbers)
+          .onChange(async (value) => {
+            this.plugin.settings.showWeekNumbers = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }

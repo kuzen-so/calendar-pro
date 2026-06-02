@@ -7,6 +7,7 @@ import {
   Modal,
   ButtonComponent,
   Menu,
+  setIcon,
 } from "obsidian";
 import DiaryHeatmapPlugin from "../main";
 import {
@@ -16,6 +17,7 @@ import {
   getYearHeatmapData,
   getRecentYearHeatmapData,
   getMonthHeatmapData,
+  countWords,
 } from "../utils/heatmap-data";
 import {
   DailyNotesConfig,
@@ -41,13 +43,17 @@ export class HeatmapView extends ItemView {
   private yearDisplayEl: HTMLElement;
   private heatmapTab: HTMLElement;
   private calendarTab: HTMLElement;
+  private todayBtn: HTMLElement;
   private contentArea: HTMLElement;
   private footerArea: HTMLElement;
 
   private refreshTimer: number | null = null;
+  private resizeTimer: number | null = null;
   private isLoading = false;
   private cache: DataCache;
   private resizeObserver: ResizeObserver | null = null;
+  private weeklyExistsInMonth = new Set<number>();
+  private weeklyWordCounts = new Map<number, number>();
 
   constructor(leaf: WorkspaceLeaf, plugin: DiaryHeatmapPlugin) {
     super(leaf);
@@ -82,10 +88,15 @@ export class HeatmapView extends ItemView {
     this.loadingEl.hide();
     this.renderContent();
 
-    // 监听容器宽度变化，热力图实时重排（边拖动边改变）
+    // 监听容器宽度变化，热力图实时重排（带防抖，避免拖拽时频繁重绘）
     this.resizeObserver = new ResizeObserver(() => {
       if (this.viewMode === "heatmap") {
-        requestAnimationFrame(() => this.renderHeatmapLayout());
+        if (this.resizeTimer) {
+          window.clearTimeout(this.resizeTimer);
+        }
+        this.resizeTimer = window.setTimeout(() => {
+          requestAnimationFrame(() => this.renderHeatmapLayout());
+        }, 150);
       }
     });
     this.resizeObserver.observe(this.containerElRef);
@@ -127,6 +138,10 @@ export class HeatmapView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearDebouncedRefresh();
+    if (this.resizeTimer) {
+      window.clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -155,34 +170,103 @@ export class HeatmapView extends ItemView {
     this.isLoading = true;
     this.loadingEl.show();
 
-    // 更新标题
-    if (this.monthDisplayEl) {
-      this.monthDisplayEl.setText(
-        this.viewMode === "calendar" ? this.calendarDate.format("MMM") : ""
-      );
-    }
-    if (this.yearDisplayEl) {
-      this.yearDisplayEl.setText(
-        this.viewMode === "heatmap"
-          ? `${this.currentYear}`
-          : this.calendarDate.format("YYYY")
-      );
-    }
-    if (this.heatmapTab) {
-      this.heatmapTab.classList.toggle("active", this.viewMode === "heatmap");
-    }
-    if (this.calendarTab) {
-      this.calendarTab.classList.toggle("active", this.viewMode === "calendar");
-    }
+    try {
+      // 更新标题：日历和热力图统一显示 ◀ 月份 年份 ▶
+      if (this.monthDisplayEl) {
+        this.monthDisplayEl.style.display = "";
+        this.monthDisplayEl.setText(this.calendarDate.format("MMM"));
+      }
+      if (this.yearDisplayEl) {
+        this.yearDisplayEl.style.display = "";
+        this.yearDisplayEl.setText(
+          this.viewMode === "heatmap"
+            ? `${this.currentYear}`
+            : this.calendarDate.format("YYYY")
+        );
+      }
+      if (this.heatmapTab) {
+        this.heatmapTab.classList.toggle("active", this.viewMode === "heatmap");
+      }
+      if (this.calendarTab) {
+        this.calendarTab.classList.toggle("active", this.viewMode === "calendar");
+      }
+      this.updateTodayButtonState();
 
-    // 清空内容区
-    this.contentArea.empty();
-    this.footerArea.empty();
+      // 清空内容区
+      this.contentArea.empty();
+      this.footerArea.empty();
 
-    await this.loadData();
-    this.loadingEl.hide();
-    this.isLoading = false;
-    this.renderContent();
+      await this.loadData();
+      if (this.viewMode === "calendar") {
+        await this.loadWeeklyExists();
+      }
+      this.renderContent();
+    } catch (e) {
+      console.error("[Diary Heatmap] Refresh failed:", e);
+    } finally {
+      this.loadingEl.hide();
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 加载当前月份各周是否存在周记及字数
+   */
+  private async loadWeeklyExists(): Promise<void> {
+    this.weeklyExistsInMonth.clear();
+    this.weeklyWordCounts.clear();
+    const config = await this.getConfig();
+    const weeklyFolder = this.plugin.settings.weeklyFolder
+      ? normalizePath(this.plugin.settings.weeklyFolder)
+      : "";
+    const diaryFolder = getFolderPath(config);
+    const folder = weeklyFolder || diaryFolder;
+    const processedWeeks = new Set<number>();
+    const readPromises: Promise<void>[] = [];
+
+    this.data.forEach((d) => {
+      if (!d.date) return;
+      const date = window.moment(d.date);
+      const weekNum = date.week();
+      if (processedWeeks.has(weekNum)) return;
+      processedWeeks.add(weekNum);
+
+      const fileName = `${this.calendarDate.year()}-第${weekNum}周.md`;
+      const filePath = folder
+        ? normalizePath(`${folder}/${fileName}`)
+        : fileName;
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (file instanceof TFile) {
+        this.weeklyExistsInMonth.add(weekNum);
+        readPromises.push(
+          this.app.vault.read(file).then((content) => {
+            this.weeklyWordCounts.set(weekNum, countWords(content));
+          }).catch(() => {
+            // 忽略读取失败，避免阻塞刷新
+          })
+        );
+      }
+    });
+
+    await Promise.all(readPromises);
+  }
+
+  /**
+   * 更新 Today 按钮状态：若当前已显示今天，则禁用
+   */
+  private updateTodayButtonState(): void {
+    if (!this.todayBtn) return;
+    const now = window.moment();
+    let isToday = false;
+    if (this.viewMode === "calendar") {
+      isToday =
+        this.calendarDate.year() === now.year() &&
+        this.calendarDate.month() === now.month();
+    } else {
+      isToday = this.currentYear === now.year();
+    }
+    this.todayBtn.toggleClass("is-disabled", isToday);
+    this.todayBtn.disabled = isToday;
   }
 
   private getSettings() {
@@ -193,6 +277,15 @@ export class HeatmapView extends ItemView {
     return await this.plugin.getEffectiveConfig();
   }
 
+  /**
+   * 公共方法：跳转到今天（供命令面板调用）
+   */
+  jumpToToday(): void {
+    this.calendarDate = window.moment();
+    this.currentYear = window.moment().year();
+    this.debouncedRefresh();
+  }
+
   private renderHeader(): void {
     const header = this.containerElRef.createDiv("diary-heatmap-header");
 
@@ -200,12 +293,12 @@ export class HeatmapView extends ItemView {
 
     const leftGroup = titleRow.createDiv("diary-heatmap-title-group");
     const prevBtn = leftGroup.createEl("button", {
-      text: "◀",
       cls: "diary-heatmap-nav-btn",
     });
+    setIcon(prevBtn, "chevron-left");
 
     this.monthDisplayEl = leftGroup.createSpan({
-      text: this.viewMode === "calendar" ? this.calendarDate.format("MMM") : "",
+      text: this.calendarDate.format("MMM"),
       cls: "diary-heatmap-month-text",
     });
     this.yearDisplayEl = leftGroup.createSpan({
@@ -217,15 +310,15 @@ export class HeatmapView extends ItemView {
     });
 
     const nextBtn = leftGroup.createEl("button", {
-      text: "▶",
       cls: "diary-heatmap-nav-btn",
     });
+    setIcon(nextBtn, "chevron-right");
 
-    // Today 按钮
-    const todayBtn = leftGroup.createEl("button", {
-      text: "Today",
+    // Today 按钮（用图标替代文字，更简洁通用）
+    this.todayBtn = leftGroup.createEl("button", {
       cls: "diary-heatmap-nav-btn diary-heatmap-today-btn",
     });
+    setIcon(this.todayBtn, "map-pin");
 
     prevBtn.addEventListener("click", () => {
       if (this.viewMode === "heatmap") {
@@ -243,7 +336,8 @@ export class HeatmapView extends ItemView {
       }
       this.debouncedRefresh();
     });
-    todayBtn.addEventListener("click", () => {
+    this.todayBtn.addEventListener("click", () => {
+      if (this.todayBtn.hasClass("is-disabled")) return;
       this.calendarDate = window.moment();
       this.currentYear = window.moment().year();
       this.debouncedRefresh();
@@ -281,19 +375,21 @@ export class HeatmapView extends ItemView {
         this.cache,
         config,
         this.calendarDate.year(),
-        this.calendarDate.month()
+        this.calendarDate.month(),
+        this.plugin.settings.weekStart
       );
     } else {
       if (
         this.currentYear === window.moment().year() &&
         this.plugin.settings.defaultYear === "recent"
       ) {
-        this.data = await getRecentYearHeatmapData(this.cache, config);
+        this.data = await getRecentYearHeatmapData(this.cache, config, this.plugin.settings.weekStart);
       } else {
         this.data = await getYearHeatmapData(
           this.cache,
           config,
-          this.currentYear
+          this.currentYear,
+          this.plugin.settings.weekStart
         );
       }
     }
@@ -319,17 +415,29 @@ export class HeatmapView extends ItemView {
   private renderHeatmap(): void {
     const wrapper = this.contentArea.createDiv("diary-heatmap-grid-wrapper");
 
-    // 上方：本年度剩余时间
+    // 上方：根据年份动态显示时间提示
     const now = window.moment();
-    const endOfYear = window.moment(`${this.currentYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
-    const remainingMonths = Math.max(0, endOfYear.diff(now, "months"));
-    const remainingDays = Math.max(0, endOfYear.diff(now, "days"));
-    const remainingHours = Math.max(0, endOfYear.diff(now, "hours"));
+    let topStatsText = "";
+    if (this.currentYear === now.year()) {
+      const endOfYear = window.moment(`${this.currentYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
+      const remainingMonths = Math.max(0, endOfYear.diff(now, "months"));
+      const remainingDays = Math.max(0, endOfYear.diff(now, "days"));
+      const remainingHours = Math.max(0, endOfYear.diff(now, "hours"));
+      topStatsText = `本年度剩余 ${remainingMonths} 月 · ${remainingDays} 天 · ${remainingHours} 小时`;
+    } else if (this.currentYear < now.year()) {
+      const endOfYear = window.moment(`${this.currentYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
+      const passedDays = Math.max(0, now.diff(endOfYear, "days"));
+      topStatsText = `距离 ${this.currentYear} 年已过去 ${passedDays} 天`;
+    } else {
+      const startOfYear = window.moment(`${this.currentYear}-01-01 00:00:00`, "YYYY-MM-DD HH:mm:ss");
+      const remainingDays = Math.max(0, startOfYear.diff(now, "days"));
+      topStatsText = `距离 ${this.currentYear} 年还有 ${remainingDays} 天`;
+    }
 
     const topStats = wrapper.createDiv("diary-heatmap-top-stats");
     topStats.createSpan({
       cls: "diary-heatmap-stats-text",
-      text: `本年度剩余 ${remainingMonths} 月 · ${remainingDays} 天 · ${remainingHours} 小时`,
+      text: topStatsText,
     });
 
     const grid = wrapper.createDiv("diary-heatmap-grid");
@@ -370,6 +478,7 @@ export class HeatmapView extends ItemView {
     });
 
     const fragment = document.createDocumentFragment();
+    const isCurrentYear = this.currentYear === now.year();
     this.data.forEach((day, index) => {
       const cell = document.createElement("div");
       cell.className = "diary-heatmap-cell";
@@ -384,6 +493,9 @@ export class HeatmapView extends ItemView {
         if (monthFirstIndices.get(month) === index) {
           const monthBadge = document.createElement("span");
           monthBadge.className = "diary-heatmap-month-badge";
+          if (!isCurrentYear || month !== now.month()) {
+            monthBadge.classList.add("dimmed");
+          }
           monthBadge.textContent = String(month + 1);
           cell.appendChild(monthBadge);
         }
@@ -422,7 +534,7 @@ export class HeatmapView extends ItemView {
 
     grid.appendChild(fragment);
 
-    // 下方：本年度日记统计
+    // 下方：本年度日记与周记统计
     const yearStats = this.data.reduce(
       (acc, d) => {
         if (d.exists && d.date && window.moment(d.date).year() === this.currentYear) {
@@ -434,29 +546,15 @@ export class HeatmapView extends ItemView {
       { diaryCount: 0, totalWords: 0 }
     );
 
+    const weeklyPattern = new RegExp(`^${this.currentYear}-第\\d{1,2}周\\.md$`);
+    const weeklyCount = this.app.vault.getFiles().filter((f) =>
+      weeklyPattern.test(f.name)
+    ).length;
+
     const bottomStats = wrapper.createDiv("diary-heatmap-bottom-stats");
     bottomStats.createSpan({
       cls: "diary-heatmap-stats-text",
-      text: `本年度共写 ${yearStats.diaryCount} 篇日记 · 共计 ${yearStats.totalWords} 字`,
-    });
-  }
-
-  private renderFooter(): void {
-    const footer = this.footerArea.createDiv("diary-heatmap-footer");
-    const legend = footer.createDiv("diary-heatmap-legend");
-    for (let i = 0; i <= 4; i++) {
-      const box = legend.createDiv("diary-heatmap-legend-box");
-      box.classList.add(`level-${i}`);
-    }
-  }
-
-  private renderStatsBar(): void {
-    const statsBar = this.footerArea.createDiv("diary-heatmap-stats-bar");
-    const totalDays = this.data.filter((d) => d.exists).length;
-    const totalWords = this.data.reduce((sum, d) => sum + d.wordCount, 0);
-    statsBar.createSpan({
-      cls: "diary-heatmap-stat",
-      text: `📅 ${totalDays}天  📝 ${totalWords}字`,
+      text: `本年度共写 ${yearStats.diaryCount} 篇日记 • ${weeklyCount} 篇周记 • 共计 ${yearStats.totalWords} 字`,
     });
   }
 
@@ -464,15 +562,21 @@ export class HeatmapView extends ItemView {
     const wrapper = this.contentArea.createDiv(
       "diary-heatmap-calendar-wrapper"
     );
+    const showWeekNumbers = this.plugin.settings.showWeekNumbers;
     const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
     const headerRow = wrapper.createDiv("diary-heatmap-calendar-header");
-    headerRow.createDiv("diary-heatmap-calendar-header-spacer");
+    if (showWeekNumbers) {
+      headerRow.createDiv("diary-heatmap-calendar-header-spacer");
+    }
     weekDays.forEach((d) => {
       headerRow.createDiv("diary-heatmap-calendar-weekday").setText(d);
     });
 
     const gridArea = wrapper.createDiv("diary-heatmap-calendar-grid-area");
+    if (!showWeekNumbers) {
+      gridArea.classList.add("no-week-numbers");
+    }
     const weeks = this.groupByWeeks(this.data);
 
     const fragment = document.createDocumentFragment();
@@ -485,13 +589,35 @@ export class HeatmapView extends ItemView {
         weekNum = window.moment(firstDayOfWeek.date).week();
       }
 
-      const weekLabelEl = document.createElement("div");
-      weekLabelEl.className = "diary-heatmap-calendar-week-label week-number";
-      weekLabelEl.textContent = String(weekNum);
-      weekLabelEl.addEventListener("click", () => {
-        this.openOrCreateWeeklyDiary(this.calendarDate.year(), weekNum);
-      });
-      fragment.appendChild(weekLabelEl);
+      if (showWeekNumbers) {
+        const weekLabelEl = document.createElement("div");
+        weekLabelEl.className = "diary-heatmap-calendar-week-label";
+        if (weekNum > 0) {
+          weekLabelEl.classList.add("week-number");
+          weekLabelEl.setAttribute("data-week-num", String(weekNum));
+          weekLabelEl.textContent = String(weekNum);
+          weekLabelEl.addEventListener("click", () => {
+            this.openOrCreateWeeklyDiary(this.calendarDate.year(), weekNum);
+          });
+          weekLabelEl.addEventListener("contextmenu", (evt) => {
+            evt.preventDefault();
+            this.showWeeklyContextMenu(evt, this.calendarDate.year(), weekNum);
+          });
+          if (this.weeklyExistsInMonth.has(weekNum)) {
+            const wordCount = this.weeklyWordCounts.get(weekNum) || 0;
+            const dots = this.getWeeklyDots(wordCount);
+            const dotContainer = document.createElement("div");
+            dotContainer.className = "weekly-dots";
+            dots.forEach((isSolid) => {
+              const dot = document.createElement("span");
+              dot.className = isSolid ? "weekly-dot solid" : "weekly-dot";
+              dotContainer.appendChild(dot);
+            });
+            weekLabelEl.appendChild(dotContainer);
+          }
+        }
+        fragment.appendChild(weekLabelEl);
+      }
 
       week.forEach((dayData) => {
         const cell = document.createElement("div");
@@ -522,9 +648,15 @@ export class HeatmapView extends ItemView {
           cell.classList.add(`level-${level}`, "has-diary");
           cell.setAttribute("data-tip", `${date.format("MMM D, dddd")}: ${dayData.wordCount}字`);
           cell.setAttribute("data-file-path", dayData.filePath);
-          const dot = document.createElement("span");
-          dot.className = "diary-dot";
-          cell.appendChild(dot);
+          const dots = this.getWeeklyDots(dayData.wordCount);
+          const dotContainer = document.createElement("div");
+          dotContainer.className = "diary-dots";
+          dots.forEach((isSolid) => {
+            const dot = document.createElement("span");
+            dot.className = isSolid ? "diary-dot solid" : "diary-dot";
+            dotContainer.appendChild(dot);
+          });
+          cell.appendChild(dotContainer);
         } else {
           cell.classList.add("no-diary");
         }
@@ -583,6 +715,25 @@ export class HeatmapView extends ItemView {
     });
   }
 
+  /**
+   * 根据周记字数计算圆点状态
+   * 阈值：50、150、300、500
+   * 达到阈值显示实心，下一级显示虚线
+   */
+  private getWeeklyDots(wordCount: number): boolean[] {
+    const thresholds = [50, 150, 300, 500];
+    const dots: boolean[] = [];
+    for (const t of thresholds) {
+      if (wordCount >= t) {
+        dots.push(true); // 实心
+      } else {
+        dots.push(false); // 虚线
+        break;
+      }
+    }
+    return dots;
+  }
+
   private groupByWeeks(data: HeatmapDayData[]): HeatmapDayData[][] {
     const weeks: HeatmapDayData[][] = [];
     let currentWeek: HeatmapDayData[] = [];
@@ -604,6 +755,22 @@ export class HeatmapView extends ItemView {
       }
       weeks.push(currentWeek);
     }
+
+    // 固定为 6 周，不足的补空行，避免切换月份时高度变化导致滚动条抖动
+    const MIN_WEEKS = 6;
+    while (weeks.length < MIN_WEEKS) {
+      const emptyWeek: HeatmapDayData[] = [];
+      for (let i = 0; i < 7; i++) {
+        emptyWeek.push({
+          date: "",
+          wordCount: 0,
+          exists: false,
+          filePath: "",
+        });
+      }
+      weeks.push(emptyWeek);
+    }
+
     return weeks;
   }
 
@@ -633,14 +800,12 @@ export class HeatmapView extends ItemView {
     if (!(file instanceof TFile)) return;
 
     const menu = new Menu();
-
     menu.addItem((item) =>
       item
         .setTitle("打开日记")
         .setIcon("file-text")
         .onClick(() => this.openDiary(dayData.filePath))
     );
-
     menu.addItem((item) =>
       item
         .setTitle("复制路径")
@@ -650,9 +815,7 @@ export class HeatmapView extends ItemView {
           new Notice("路径已复制到剪贴板");
         })
     );
-
     menu.addSeparator();
-
     menu.addItem((item) =>
       item
         .setTitle("删除日记")
@@ -664,26 +827,104 @@ export class HeatmapView extends ItemView {
           new Notice("日记已移至回收站");
         })
     );
-
     menu.showAtMouseEvent(evt);
+  }
+
+  private async showWeeklyContextMenu(
+    evt: MouseEvent,
+    year: number,
+    week: number
+  ): Promise<void> {
+    const weeklyFolder = this.plugin.settings.weeklyFolder
+      ? normalizePath(this.plugin.settings.weeklyFolder)
+      : "";
+    const config = await this.getConfig();
+    const diaryFolder = getFolderPath(config);
+    const folder = weeklyFolder || diaryFolder;
+    const fileName = `${year}-第${week}周.md`;
+    const filePath = folder
+      ? normalizePath(`${folder}/${fileName}`)
+      : fileName;
+
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof TFile) {
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle("打开周记")
+          .setIcon("file-text")
+          .onClick(() => this.openDiary(filePath))
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle("复制路径")
+          .setIcon("copy")
+          .onClick(() => {
+            navigator.clipboard.writeText(filePath);
+            new Notice("路径已复制到剪贴板");
+          })
+      );
+      menu.addSeparator();
+      menu.addItem((item) =>
+        item
+          .setTitle("删除周记")
+          .setIcon("trash")
+          .onClick(async () => {
+            await this.app.fileManager.trashFile(file);
+            this.debouncedRefresh();
+            new Notice("周记已移至回收站");
+          })
+      );
+      menu.showAtMouseEvent(evt);
+    } else {
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle("创建周记")
+          .setIcon("plus")
+          .onClick(() => this.openOrCreateWeeklyDiary(year, week))
+      );
+      menu.showAtMouseEvent(evt);
+    }
   }
 
   private highlightActiveDiary(): void {
     const activeFile = this.app.workspace.getActiveFile();
 
-    // 移除之前的高亮
-    this.contentArea.querySelectorAll(".diary-heatmap-calendar-cell.is-active").forEach((el) => {
-      el.classList.remove("is-active");
-    });
+    // 移除日记高亮
+    const prevCell = this.contentArea.querySelector(".diary-heatmap-calendar-cell.is-active");
+    if (prevCell) prevCell.classList.remove("is-active");
+
+    // 移除周记高亮
+    const prevWeek = this.contentArea.querySelector(
+      ".diary-heatmap-calendar-week-label.is-active-week"
+    );
+    if (prevWeek) prevWeek.classList.remove("is-active-week");
 
     if (!activeFile) return;
 
-    // 查找当前打开文件对应的日历格子
+    // 日记高亮
     const cell = this.contentArea.querySelector(
       `.diary-heatmap-calendar-cell[data-file-path="${activeFile.path}"]`
     );
     if (cell) {
       cell.classList.add("is-active");
+      return;
+    }
+
+    // 周记高亮：文件名匹配 {year}-第{week}周.md
+    const weeklyMatch = activeFile.name.match(/^(\d{4})-第(\d{1,2})周\.md$/);
+    if (weeklyMatch) {
+      const year = parseInt(weeklyMatch[1]);
+      const week = parseInt(weeklyMatch[2]);
+      if (year === this.calendarDate.year()) {
+        const weekLabel = this.contentArea.querySelector(
+          `.diary-heatmap-calendar-week-label[data-week-num="${week}"]`
+        );
+        if (weekLabel) {
+          weekLabel.classList.add("is-active-week");
+        }
+      }
     }
   }
 
@@ -725,7 +966,11 @@ export class HeatmapView extends ItemView {
           content = content
             .replace(/\{\{date\}\}/g, formattedDate)
             .replace(/\{\{title\}\}/g, formattedDate)
-            .replace(/\{\{time\}\}/g, date.format("HH:mm"));
+            .replace(/\{\{time\}\}/g, date.format("HH:mm"))
+            .replace(/\{\{date:([^}]+)\}\}/g, (_, fmt: string) => date.format(fmt))
+            .replace(/\{\{time:([^}]+)\}\}/g, (_, fmt: string) => date.format(fmt))
+            .replace(/\{\{yesterday\}\}/g, date.clone().subtract(1, "day").format("YYYY年M月D日"))
+            .replace(/\{\{tomorrow\}\}/g, date.clone().add(1, "day").format("YYYY年M月D日"));
 
           // 如果没有模板内容，创建空白文件
           if (!content.trim()) {
@@ -752,9 +997,13 @@ export class HeatmapView extends ItemView {
     year: number,
     week: number
   ): Promise<void> {
+    const weeklyFolder = this.plugin.settings.weeklyFolder
+      ? normalizePath(this.plugin.settings.weeklyFolder)
+      : "";
     const config = await this.getConfig();
-    const folder = getFolderPath(config);
-    const fileName = `${year}-W${String(week).padStart(2, "0")}.md`;
+    const diaryFolder = getFolderPath(config);
+    const folder = weeklyFolder || diaryFolder;
+    const fileName = `${year}-第${week}周.md`;
     const filePath = folder
       ? normalizePath(`${folder}/${fileName}`)
       : fileName;
@@ -765,17 +1014,25 @@ export class HeatmapView extends ItemView {
       return;
     }
 
-    try {
-      const content = `# ${year}年第${week}周\n\n`;
-      if (folder && !(await this.app.vault.adapter.exists(folder))) {
-        await this.app.vault.createFolder(folder);
+    // 二次确认弹窗
+    new ConfirmModal(
+      this.app,
+      `是否创建 ${year}年第${week}周的周记？`,
+      async () => {
+        try {
+          const content = "";
+          if (folder && !(await this.app.vault.adapter.exists(folder))) {
+            await this.app.vault.createFolder(folder);
+          }
+          const newFile = await this.app.vault.create(filePath, content);
+          this.app.workspace.getLeaf().openFile(newFile);
+          new Notice(`已创建周记: ${year}年第${week}周`);
+        } catch (e) {
+          console.error(`[Diary Heatmap] Failed to create weekly note:`, e);
+          new Notice("创建周记失败");
+        }
       }
-      const newFile = await this.app.vault.create(filePath, content);
-      this.app.workspace.getLeaf().openFile(newFile);
-    } catch (e) {
-      console.error(`[Diary Heatmap] Failed to create weekly note:`, e);
-      new Notice("创建周记失败");
-    }
+    ).open();
   }
 }
 
