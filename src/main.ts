@@ -8,20 +8,20 @@ export default class DiaryHeatmapPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    console.log("[Diary Heatmap] Plugin loaded v1.3.0");
+    console.log("[Calendar Heatmap] Plugin loaded v1.3.0");
 
     this.registerView(
       VIEW_TYPE_DIARY_HEATMAP,
       (leaf) => new HeatmapView(leaf, this)
     );
 
-    this.addRibbonIcon("calendar", "日记热力图", () => {
+    this.addRibbonIcon("calendar", "日历带热力图", () => {
       this.activateHeatmapView();
     });
 
     this.addCommand({
       id: "open-diary-heatmap",
-      name: "打开日记热力图",
+      name: "打开日历带热力图",
       callback: () => {
         this.activateHeatmapView();
       },
@@ -29,7 +29,7 @@ export default class DiaryHeatmapPlugin extends Plugin {
 
     this.addCommand({
       id: "close-diary-heatmap",
-      name: "关闭日记热力图",
+      name: "关闭日历带热力图",
       callback: () => {
         this.closeHeatmapView();
       },
@@ -70,7 +70,7 @@ export default class DiaryHeatmapPlugin extends Plugin {
 
   onunload(): void {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
-    console.log("[Diary Heatmap] Plugin unloaded");
+    console.log("[Calendar Heatmap] Plugin unloaded");
   }
 
   async loadSettings(): Promise<void> {

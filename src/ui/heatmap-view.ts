@@ -69,7 +69,7 @@ export class HeatmapView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "日记热力图";
+    return "日历带热力图";
   }
 
   getIcon(): string {

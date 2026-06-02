@@ -45,7 +45,7 @@ var HeatmapSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "\u65E5\u8BB0\u70ED\u529B\u56FE\u8BBE\u7F6E" });
+    containerEl.createEl("h2", { text: "\u65E5\u5386\u5E26\u70ED\u529B\u56FE\u8BBE\u7F6E" });
     new import_obsidian.Setting(containerEl).setName("\u4F7F\u7528\u81EA\u5B9A\u4E49\u65E5\u8BB0\u914D\u7F6E").setDesc("\u5982\u679C\u672A\u542F\u7528 Daily Notes \u63D2\u4EF6\uFF0C\u6216\u60F3\u8986\u76D6\u5176\u914D\u7F6E\uFF0C\u8BF7\u5F00\u542F\u6B64\u9009\u9879").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.useCustomConfig).onChange(async (value) => {
         this.plugin.settings.useCustomConfig = value;
@@ -316,7 +316,7 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     return VIEW_TYPE_DIARY_HEATMAP;
   }
   getDisplayText() {
-    return "\u65E5\u8BB0\u70ED\u529B\u56FE";
+    return "\u65E5\u5386\u5E26\u70ED\u529B\u56FE";
   }
   getIcon() {
     return "calendar";
@@ -1118,24 +1118,24 @@ var ConfirmModal = class extends import_obsidian4.Modal {
 var DiaryHeatmapPlugin = class extends import_obsidian5.Plugin {
   async onload() {
     await this.loadSettings();
-    console.log("[Diary Heatmap] Plugin loaded v1.3.0");
+    console.log("[Calendar Heatmap] Plugin loaded v1.3.0");
     this.registerView(
       VIEW_TYPE_DIARY_HEATMAP,
       (leaf) => new HeatmapView(leaf, this)
     );
-    this.addRibbonIcon("calendar", "\u65E5\u8BB0\u70ED\u529B\u56FE", () => {
+    this.addRibbonIcon("calendar", "\u65E5\u5386\u5E26\u70ED\u529B\u56FE", () => {
       this.activateHeatmapView();
     });
     this.addCommand({
       id: "open-diary-heatmap",
-      name: "\u6253\u5F00\u65E5\u8BB0\u70ED\u529B\u56FE",
+      name: "\u6253\u5F00\u65E5\u5386\u5E26\u70ED\u529B\u56FE",
       callback: () => {
         this.activateHeatmapView();
       }
     });
     this.addCommand({
       id: "close-diary-heatmap",
-      name: "\u5173\u95ED\u65E5\u8BB0\u70ED\u529B\u56FE",
+      name: "\u5173\u95ED\u65E5\u5386\u5E26\u70ED\u529B\u56FE",
       callback: () => {
         this.closeHeatmapView();
       }
@@ -1172,7 +1172,7 @@ var DiaryHeatmapPlugin = class extends import_obsidian5.Plugin {
   }
   onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_DIARY_HEATMAP);
-    console.log("[Diary Heatmap] Plugin unloaded");
+    console.log("[Calendar Heatmap] Plugin unloaded");
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());

@@ -1,7 +1,7 @@
 {
-  "name": "diary-heatmap",
+  "name": "calendar-with-heatmap",
   "version": "1.3.0",
-  "description": "根据 Obsidian 日记自动生成热力图，支持自动读取 Daily Notes 配置",
+  "description": "日历视图结合热力图，支持日记与周记管理",
   "main": "main.js",
   "scripts": {
     "build": "node esbuild.config.mjs production",
@@ -10,10 +10,11 @@
   "keywords": [
     "obsidian",
     "plugin",
-    "diary",
-    "heatmap"
+    "calendar",
+    "heatmap",
+    "diary"
   ],
-  "author": "Diary Heatmap Plugin",
+  "author": "Calendar Heatmap Plugin",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",
