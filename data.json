@@ -6,6 +6,22 @@
     500,
     800
   ],
+  "colors": [
+    "#ddf4e0",
+    "#9be9a8",
+    "#40c463",
+    "#216e39",
+    "#0e4429",
+    "#052814"
+  ],
+  "darkColors": [
+    "#0e4429",
+    "#006d32",
+    "#26a641",
+    "#39d353",
+    "#56d364",
+    "#7ee787"
+  ],
   "defaultYear": "current",
   "customFolder": "",
   "customFormat": "YYYY-MM-DD",

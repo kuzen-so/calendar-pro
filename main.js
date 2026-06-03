@@ -88,6 +88,13 @@ var HeatmapSettingTab = class extends import_obsidian.PluginSettingTab {
         window.moment.updateLocale(window.moment.locale(), {
           week: { dow: parseInt(value) }
         });
+        const leaves = this.plugin.app.workspace.getLeavesOfType("diary-heatmap-view");
+        leaves.forEach((leaf) => {
+          const view = leaf.view;
+          if (view.debouncedRefresh) {
+            view.debouncedRefresh();
+          }
+        });
       })
     );
     new import_obsidian.Setting(containerEl).setName("\u5C55\u73B0\u5468\u6570").setDesc("\u5728\u65E5\u5386\u89C6\u56FE\u5DE6\u4FA7\u663E\u793A\u5468\u6570\u6807\u7B7E").addToggle(

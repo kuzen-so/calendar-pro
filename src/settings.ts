@@ -127,6 +127,14 @@ export class HeatmapSettingTab extends PluginSettingTab {
             window.moment.updateLocale(window.moment.locale(), {
               week: { dow: parseInt(value) },
             });
+            // 刷新所有打开的 Calendar Pro 视图
+            const leaves = this.plugin.app.workspace.getLeavesOfType("diary-heatmap-view");
+            leaves.forEach((leaf) => {
+              const view = leaf.view as any;
+              if (view.debouncedRefresh) {
+                view.debouncedRefresh();
+              }
+            });
           })
       );
 
