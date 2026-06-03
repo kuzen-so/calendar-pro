@@ -1,13 +1,17 @@
 {
   "thresholds": [
-    100,
+    50,
+    150,
     300,
-    600,
-    1000
+    500,
+    800
   ],
   "defaultYear": "current",
   "customFolder": "",
   "customFormat": "YYYY-MM-DD",
   "useCustomConfig": false,
+  "weeklyFolder": "97-Weeks",
+  "weekStart": 1,
+  "showWeekNumbers": true,
   "heatmapRows": 11
 }

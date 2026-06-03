@@ -3,6 +3,8 @@ import DiaryHeatmapPlugin from "./main";
 
 export interface HeatmapSettings {
   thresholds: number[];
+  colors: string[];
+  darkColors: string[];
   defaultYear: "current" | "recent";
   customFolder: string;
   customFormat: string;
@@ -14,6 +16,8 @@ export interface HeatmapSettings {
 
 export const DEFAULT_SETTINGS: HeatmapSettings = {
   thresholds: [50, 150, 300, 500, 800],
+  colors: ["#ddf4e0", "#9be9a8", "#40c463", "#216e39", "#0e4429", "#052814"],
+  darkColors: ["#0e4429", "#006d32", "#26a641", "#39d353", "#56d364", "#7ee787"],
   defaultYear: "current",
   customFolder: "",
   customFormat: "YYYY-MM-DD",
@@ -138,49 +142,126 @@ export class HeatmapSettingTab extends PluginSettingTab {
           })
       );
 
-    // 热力图字数阈值设置
-    containerEl.createEl("h3", { text: "热力图颜色阈值" });
+    // 热力图字数阈值与颜色设置
+    containerEl.createEl("h3", { text: "热力图档位设置" });
     const thresholdDesc = containerEl.createEl("p", {
-      text: "设置 5 档字数阈值，用于划分热力图颜色深浅（需递增）",
+      text: "每行设置一个档位的字数阈值和对应颜色（需递增）",
       cls: "setting-item-description",
     });
     thresholdDesc.style.marginBottom = "12px";
 
-    const thresholdContainer = containerEl.createDiv();
-    thresholdContainer.style.display = "grid";
-    thresholdContainer.style.gridTemplateColumns = "repeat(5, 1fr)";
-    thresholdContainer.style.gap = "8px";
-    thresholdContainer.style.marginBottom = "16px";
+    const rowLabels = [
+      "第 1 档（≤ N 字）",
+      "第 2 档（≤ N 字）",
+      "第 3 档（≤ N 字）",
+      "第 4 档（≤ N 字）",
+      "第 5 档（≤ N 字）",
+      "第 6 档（> N 字）",
+    ];
 
-    const labels = ["浅 (≤)", "中浅 (≤)", "中 (≤)", "中深 (≤)", "深 (≤)"];
-    this.plugin.settings.thresholds.forEach((val, idx) => {
-      const box = thresholdContainer.createDiv();
-      box.createEl("label", {
-        text: labels[idx],
+    rowLabels.forEach((label, idx) => {
+      const isLast = idx === rowLabels.length - 1;
+      const row = containerEl.createDiv();
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "8px";
+      row.style.marginBottom = "8px";
+      row.style.padding = "6px 8px";
+      row.style.borderRadius = "6px";
+      row.style.background = "var(--background-modifier-form-field)";
+      row.style.border = "1px solid var(--background-modifier-border)";
+
+      // 标签
+      row.createEl("span", {
+        text: label,
         cls: "setting-item-name",
-      }).style.fontSize = "11px";
-      const input = box.createEl("input", {
-        type: "number",
-        value: String(val),
-      });
-      input.style.width = "100%";
-      input.style.padding = "4px 6px";
-      input.style.borderRadius = "4px";
-      input.style.border = "1px solid var(--background-modifier-border)";
-      input.style.background = "var(--background-modifier-form-field)";
-      input.style.color = "var(--text-normal)";
-      input.addEventListener("change", async () => {
-        const num = Math.max(1, Math.round(Number(input.value)));
-        this.plugin.settings.thresholds[idx] = num;
-        // 自动修正递增顺序
-        for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
-          if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
-            this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+      }).style.fontSize = "12px";
+      row.createEl("span").style.flex = "1";
+
+      if (!isLast) {
+        // 阈值输入
+        const numInput = row.createEl("input", {
+          type: "number",
+          value: String(this.plugin.settings.thresholds[idx] || 50),
+        });
+        numInput.style.width = "70px";
+        numInput.style.padding = "3px 6px";
+        numInput.style.borderRadius = "4px";
+        numInput.style.border = "1px solid var(--background-modifier-border)";
+        numInput.style.background = "var(--background-primary)";
+        numInput.style.color = "var(--text-normal)";
+        numInput.addEventListener("change", async () => {
+          const num = Math.max(1, Math.round(Number(numInput.value)));
+          this.plugin.settings.thresholds[idx] = num;
+          // 自动修正递增顺序
+          for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
+            if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
+              this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+            }
           }
-        }
+          await this.plugin.saveSettings();
+          this.display();
+        });
+      }
+
+      // 浅色颜色选择器（太阳图标）
+      const lightColorBox = row.createDiv();
+      lightColorBox.style.display = "flex";
+      lightColorBox.style.alignItems = "center";
+      lightColorBox.style.gap = "3px";
+      lightColorBox.style.flexShrink = "0";
+      const lightLabel = lightColorBox.createEl("span", { text: "☀" });
+      lightLabel.style.fontSize = "10px";
+      const lightColorInput = lightColorBox.createEl("input", {
+        type: "color",
+        value: this.plugin.settings.colors[idx] || "#999",
+      });
+      lightColorInput.style.width = "28px";
+      lightColorInput.style.height = "22px";
+      lightColorInput.style.padding = "0";
+      lightColorInput.style.border = "none";
+      lightColorInput.style.background = "none";
+      lightColorInput.style.cursor = "pointer";
+      lightColorInput.addEventListener("input", async () => {
+        this.plugin.settings.colors[idx] = lightColorInput.value;
         await this.plugin.saveSettings();
-        this.display(); // 刷新显示修正后的值
+      });
+
+      // 深色颜色选择器（月亮图标）
+      const darkColorBox = row.createDiv();
+      darkColorBox.style.display = "flex";
+      darkColorBox.style.alignItems = "center";
+      darkColorBox.style.gap = "3px";
+      darkColorBox.style.flexShrink = "0";
+      const darkLabel = darkColorBox.createEl("span", { text: "☾" });
+      darkLabel.style.fontSize = "10px";
+      const darkColorInput = darkColorBox.createEl("input", {
+        type: "color",
+        value: this.plugin.settings.darkColors[idx] || "#999",
+      });
+      darkColorInput.style.width = "28px";
+      darkColorInput.style.height = "22px";
+      darkColorInput.style.padding = "0";
+      darkColorInput.style.border = "none";
+      darkColorInput.style.background = "none";
+      darkColorInput.style.cursor = "pointer";
+      darkColorInput.addEventListener("input", async () => {
+        this.plugin.settings.darkColors[idx] = darkColorInput.value;
+        await this.plugin.saveSettings();
       });
     });
+
+    // 重置为默认按钮
+    new Setting(containerEl).addButton((btn) =>
+      btn
+        .setButtonText("重置为默认绿色主题")
+        .onClick(async () => {
+          this.plugin.settings.colors = [...DEFAULT_SETTINGS.colors];
+          this.plugin.settings.darkColors = [...DEFAULT_SETTINGS.darkColors];
+          this.plugin.settings.thresholds = [...DEFAULT_SETTINGS.thresholds];
+          await this.plugin.saveSettings();
+          this.display();
+        })
+    );
   }
 }

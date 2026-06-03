@@ -14,9 +14,13 @@ export class HeatmapRenderer {
     data: HeatmapDayData[],
     year: number,
     thresholds: number[],
+    colors: string[],
+    darkColors: string[],
     weeklyFolder: string,
     containerWidth: number
   ): void {
+    const isDark = document.body.classList.contains("theme-dark");
+    const activeColors = isDark ? darkColors : colors;
     container.empty();
     footer.empty();
 
@@ -90,6 +94,9 @@ export class HeatmapRenderer {
       cell.className = "diary-heatmap-cell";
       const level = getHeatLevel(day.wordCount, thresholds);
       cell.classList.add(`level-${level}`);
+      if (level > 0 && activeColors[level - 1]) {
+        cell.style.backgroundColor = activeColors[level - 1];
+      }
       cell.setAttribute("data-date", day.date);
       cell.setAttribute("data-count", String(day.wordCount));
 
@@ -171,7 +178,10 @@ export class HeatmapRenderer {
     legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "少" });
     const legendCells = legendRow.createDiv("diary-heatmap-legend-cells");
     for (let i = 1; i <= 6; i++) {
-      legendCells.createDiv(`diary-heatmap-cell level-${i} legend-cell`);
+      const cell = legendCells.createDiv("diary-heatmap-cell legend-cell");
+      if (activeColors[i - 1]) {
+        cell.style.backgroundColor = activeColors[i - 1];
+      }
     }
     legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "多" });
 

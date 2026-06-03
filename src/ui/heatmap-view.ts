@@ -453,6 +453,8 @@ export class HeatmapView extends ItemView {
         this.data,
         this.currentYear,
         this.plugin.settings.thresholds,
+        this.plugin.settings.colors,
+        this.plugin.settings.darkColors,
         this.plugin.settings.weeklyFolder,
         this.containerElRef.clientWidth - 16
       );
@@ -479,6 +481,8 @@ export class HeatmapView extends ItemView {
       this.data,
       this.currentYear,
       this.plugin.settings.thresholds,
+      this.plugin.settings.colors,
+      this.plugin.settings.darkColors,
       this.plugin.settings.weeklyFolder,
       this.containerElRef.clientWidth - 16
     );

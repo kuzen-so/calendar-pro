@@ -29,6 +29,8 @@ var import_obsidian8 = require("obsidian");
 var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
   thresholds: [50, 150, 300, 500, 800],
+  colors: ["#ddf4e0", "#9be9a8", "#40c463", "#216e39", "#0e4429", "#052814"],
+  darkColors: ["#0e4429", "#006d32", "#26a641", "#39d353", "#56d364", "#7ee787"],
   defaultYear: "current",
   customFolder: "",
   customFormat: "YYYY-MM-DD",
@@ -94,46 +96,111 @@ var HeatmapSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    containerEl.createEl("h3", { text: "\u70ED\u529B\u56FE\u989C\u8272\u9608\u503C" });
+    containerEl.createEl("h3", { text: "\u70ED\u529B\u56FE\u6863\u4F4D\u8BBE\u7F6E" });
     const thresholdDesc = containerEl.createEl("p", {
-      text: "\u8BBE\u7F6E 5 \u6863\u5B57\u6570\u9608\u503C\uFF0C\u7528\u4E8E\u5212\u5206\u70ED\u529B\u56FE\u989C\u8272\u6DF1\u6D45\uFF08\u9700\u9012\u589E\uFF09",
+      text: "\u6BCF\u884C\u8BBE\u7F6E\u4E00\u4E2A\u6863\u4F4D\u7684\u5B57\u6570\u9608\u503C\u548C\u5BF9\u5E94\u989C\u8272\uFF08\u9700\u9012\u589E\uFF09",
       cls: "setting-item-description"
     });
     thresholdDesc.style.marginBottom = "12px";
-    const thresholdContainer = containerEl.createDiv();
-    thresholdContainer.style.display = "grid";
-    thresholdContainer.style.gridTemplateColumns = "repeat(5, 1fr)";
-    thresholdContainer.style.gap = "8px";
-    thresholdContainer.style.marginBottom = "16px";
-    const labels = ["\u6D45 (\u2264)", "\u4E2D\u6D45 (\u2264)", "\u4E2D (\u2264)", "\u4E2D\u6DF1 (\u2264)", "\u6DF1 (\u2264)"];
-    this.plugin.settings.thresholds.forEach((val, idx) => {
-      const box = thresholdContainer.createDiv();
-      box.createEl("label", {
-        text: labels[idx],
+    const rowLabels = [
+      "\u7B2C 1 \u6863\uFF08\u2264 N \u5B57\uFF09",
+      "\u7B2C 2 \u6863\uFF08\u2264 N \u5B57\uFF09",
+      "\u7B2C 3 \u6863\uFF08\u2264 N \u5B57\uFF09",
+      "\u7B2C 4 \u6863\uFF08\u2264 N \u5B57\uFF09",
+      "\u7B2C 5 \u6863\uFF08\u2264 N \u5B57\uFF09",
+      "\u7B2C 6 \u6863\uFF08> N \u5B57\uFF09"
+    ];
+    rowLabels.forEach((label, idx) => {
+      const isLast = idx === rowLabels.length - 1;
+      const row = containerEl.createDiv();
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "8px";
+      row.style.marginBottom = "8px";
+      row.style.padding = "6px 8px";
+      row.style.borderRadius = "6px";
+      row.style.background = "var(--background-modifier-form-field)";
+      row.style.border = "1px solid var(--background-modifier-border)";
+      row.createEl("span", {
+        text: label,
         cls: "setting-item-name"
-      }).style.fontSize = "11px";
-      const input = box.createEl("input", {
-        type: "number",
-        value: String(val)
-      });
-      input.style.width = "100%";
-      input.style.padding = "4px 6px";
-      input.style.borderRadius = "4px";
-      input.style.border = "1px solid var(--background-modifier-border)";
-      input.style.background = "var(--background-modifier-form-field)";
-      input.style.color = "var(--text-normal)";
-      input.addEventListener("change", async () => {
-        const num = Math.max(1, Math.round(Number(input.value)));
-        this.plugin.settings.thresholds[idx] = num;
-        for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
-          if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
-            this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+      }).style.fontSize = "12px";
+      row.createEl("span").style.flex = "1";
+      if (!isLast) {
+        const numInput = row.createEl("input", {
+          type: "number",
+          value: String(this.plugin.settings.thresholds[idx] || 50)
+        });
+        numInput.style.width = "70px";
+        numInput.style.padding = "3px 6px";
+        numInput.style.borderRadius = "4px";
+        numInput.style.border = "1px solid var(--background-modifier-border)";
+        numInput.style.background = "var(--background-primary)";
+        numInput.style.color = "var(--text-normal)";
+        numInput.addEventListener("change", async () => {
+          const num = Math.max(1, Math.round(Number(numInput.value)));
+          this.plugin.settings.thresholds[idx] = num;
+          for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
+            if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
+              this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+            }
           }
-        }
+          await this.plugin.saveSettings();
+          this.display();
+        });
+      }
+      const lightColorBox = row.createDiv();
+      lightColorBox.style.display = "flex";
+      lightColorBox.style.alignItems = "center";
+      lightColorBox.style.gap = "3px";
+      lightColorBox.style.flexShrink = "0";
+      const lightLabel = lightColorBox.createEl("span", { text: "\u2600" });
+      lightLabel.style.fontSize = "10px";
+      const lightColorInput = lightColorBox.createEl("input", {
+        type: "color",
+        value: this.plugin.settings.colors[idx] || "#999"
+      });
+      lightColorInput.style.width = "28px";
+      lightColorInput.style.height = "22px";
+      lightColorInput.style.padding = "0";
+      lightColorInput.style.border = "none";
+      lightColorInput.style.background = "none";
+      lightColorInput.style.cursor = "pointer";
+      lightColorInput.addEventListener("input", async () => {
+        this.plugin.settings.colors[idx] = lightColorInput.value;
         await this.plugin.saveSettings();
-        this.display();
+      });
+      const darkColorBox = row.createDiv();
+      darkColorBox.style.display = "flex";
+      darkColorBox.style.alignItems = "center";
+      darkColorBox.style.gap = "3px";
+      darkColorBox.style.flexShrink = "0";
+      const darkLabel = darkColorBox.createEl("span", { text: "\u263E" });
+      darkLabel.style.fontSize = "10px";
+      const darkColorInput = darkColorBox.createEl("input", {
+        type: "color",
+        value: this.plugin.settings.darkColors[idx] || "#999"
+      });
+      darkColorInput.style.width = "28px";
+      darkColorInput.style.height = "22px";
+      darkColorInput.style.padding = "0";
+      darkColorInput.style.border = "none";
+      darkColorInput.style.background = "none";
+      darkColorInput.style.cursor = "pointer";
+      darkColorInput.addEventListener("input", async () => {
+        this.plugin.settings.darkColors[idx] = darkColorInput.value;
+        await this.plugin.saveSettings();
       });
     });
+    new import_obsidian.Setting(containerEl).addButton(
+      (btn) => btn.setButtonText("\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u7EFF\u8272\u4E3B\u9898").onClick(async () => {
+        this.plugin.settings.colors = [...DEFAULT_SETTINGS.colors];
+        this.plugin.settings.darkColors = [...DEFAULT_SETTINGS.darkColors];
+        this.plugin.settings.thresholds = [...DEFAULT_SETTINGS.thresholds];
+        await this.plugin.saveSettings();
+        this.display();
+      })
+    );
   }
 };
 
@@ -515,7 +582,9 @@ var HeatmapRenderer = class {
     this.app = app;
     this.diaryService = diaryService;
   }
-  render(container, footer, data, year, thresholds, weeklyFolder, containerWidth) {
+  render(container, footer, data, year, thresholds, colors, darkColors, weeklyFolder, containerWidth) {
+    const isDark = document.body.classList.contains("theme-dark");
+    const activeColors = isDark ? darkColors : colors;
     container.empty();
     footer.empty();
     const wrapper = container.createDiv("diary-heatmap-grid-wrapper");
@@ -575,6 +644,9 @@ var HeatmapRenderer = class {
       cell.className = "diary-heatmap-cell";
       const level = getHeatLevel(day.wordCount, thresholds);
       cell.classList.add(`level-${level}`);
+      if (level > 0 && activeColors[level - 1]) {
+        cell.style.backgroundColor = activeColors[level - 1];
+      }
       cell.setAttribute("data-date", day.date);
       cell.setAttribute("data-count", String(day.wordCount));
       if (day.date) {
@@ -640,7 +712,10 @@ var HeatmapRenderer = class {
     legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "\u5C11" });
     const legendCells = legendRow.createDiv("diary-heatmap-legend-cells");
     for (let i = 1; i <= 6; i++) {
-      legendCells.createDiv(`diary-heatmap-cell level-${i} legend-cell`);
+      const cell = legendCells.createDiv("diary-heatmap-cell legend-cell");
+      if (activeColors[i - 1]) {
+        cell.style.backgroundColor = activeColors[i - 1];
+      }
     }
     legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "\u591A" });
     footer.appendChild(wrapper);
@@ -1225,6 +1300,8 @@ var HeatmapView = class extends import_obsidian7.ItemView {
         this.data,
         this.currentYear,
         this.plugin.settings.thresholds,
+        this.plugin.settings.colors,
+        this.plugin.settings.darkColors,
         this.plugin.settings.weeklyFolder,
         this.containerElRef.clientWidth - 16
       );
@@ -1250,6 +1327,8 @@ var HeatmapView = class extends import_obsidian7.ItemView {
       this.data,
       this.currentYear,
       this.plugin.settings.thresholds,
+      this.plugin.settings.colors,
+      this.plugin.settings.darkColors,
       this.plugin.settings.weeklyFolder,
       this.containerElRef.clientWidth - 16
     );
@@ -1347,6 +1426,8 @@ var DiaryHeatmapPlugin = class extends import_obsidian8.Plugin {
     const loaded = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
     this.settings.thresholds = this.validateThresholds(this.settings.thresholds);
+    this.settings.colors = this.validateColors(this.settings.colors);
+    this.settings.darkColors = this.validateColors(this.settings.darkColors);
   }
   validateThresholds(thresholds) {
     if (!Array.isArray(thresholds) || thresholds.length !== 5) {
@@ -1359,6 +1440,14 @@ var DiaryHeatmapPlugin = class extends import_obsidian8.Plugin {
       }
     }
     return valid;
+  }
+  validateColors(colors) {
+    if (!Array.isArray(colors) || colors.length !== 6) {
+      return [...DEFAULT_SETTINGS.colors];
+    }
+    return colors.map(
+      (c) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c) ? c : "#999999"
+    );
   }
   async saveSettings() {
     await this.saveData(this.settings);

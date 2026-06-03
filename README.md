@@ -1,66 +1,66 @@
 # Calendar Pro
 
-日历视图结合热力图，支持日记与周记管理。
+A calendar view combined with a heatmap for diary and weekly note management.
 
-## 功能特性
+## Features
 
-- **双视图切换**：日历视图 + 热力图视图，一键切换
-- **日记管理**：点击日期快速创建/打开日记，支持模板变量替换
-- **周记支持**：独立的周记文件夹，周标签点击创建/打开周记
-- **字数统计**：中日文字数统计，支持 frontmatter 自动过滤
-- **阶梯圆点**：日历日期下方显示圆点标记，随字数增加逐步填满
-- **热力图图例**：5 档颜色阈值，直观展示写作密度
-- **键盘导航**：按 ← → 键快速切换月份/年份
-- **深浅主题**：自动适配 Obsidian 浅色/深色主题
+- **Dual View Toggle**: Switch seamlessly between calendar view and heatmap view
+- **Diary Management**: Click any date to quickly create or open a diary entry with template variable support
+- **Weekly Notes**: Dedicated weekly note folder with clickable week labels for easy creation and access
+- **Word Count Statistics**: Chinese and English word counting with automatic frontmatter filtering
+- **Staircase Dots**: Visual dot markers below calendar dates that progressively fill as word count increases
+- **Heatmap Legend**: 5-tier color thresholds for intuitive writing density visualization
+- **Keyboard Navigation**: Use `←` and `→` arrow keys to switch months/years quickly
+- **Light & Dark Themes**: Automatically adapts to Obsidian's light and dark themes
 
-## 安装
+## Installation
 
-### 方式一：BRAT（推荐）
+### Method 1: BRAT (Recommended)
 
-1. 安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 插件
-2. 打开命令面板 → `BRAT: Add a beta plugin for testing`
-3. 输入 `https://github.com/kuzen-so/calendar-pro`
-4. 点击 `Add Plugin`
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin
+2. Open the command palette → `BRAT: Add a beta plugin for testing`
+3. Enter `https://github.com/kuzen-so/calendar-pro`
+4. Click `Add Plugin`
 
-### 方式二：手动安装
+### Method 2: Manual Installation
 
-1. 下载本仓库 Release 中的 `main.js`、`manifest.json`、`styles.css`
-2. 在你的 Obsidian Vault 中创建文件夹 `.obsidian/plugins/calendar-pro/`
-3. 将下载的 3 个文件放入该文件夹
-4. 重启 Obsidian，在 **设置 → 社区插件** 中启用「Calendar Pro」
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest Release
+2. Create the folder `.obsidian/plugins/calendar-pro/` in your Obsidian vault
+3. Place the downloaded 3 files into that folder
+4. Restart Obsidian and enable "Calendar Pro" in **Settings → Community Plugins**
 
-## 使用
+## Usage
 
-- 点击左侧边栏的 **日历图标** 打开视图
-- 点击日期格子打开/创建日记
-- 右键有日记的日期可删除、复制路径
-- 点击周标签数字打开/创建周记
-- 按 `←` `→` 键切换月份/年份
+- Click the **calendar icon** in the left sidebar to open the view
+- Click a date cell to open or create a diary entry
+- Right-click a date with an existing diary to delete it or copy its path
+- Click a week label number to open or create a weekly note
+- Press `←` / `→` keys to navigate between months/years
 
-## 设置
+## Settings
 
-进入 **设置 → 第三方插件 → Calendar Pro → 选项**：
+Go to **Settings → Community Plugins → Calendar Pro → Options**:
 
-| 设置项 | 说明 |
-|--------|------|
-| 使用自定义日记配置 | 覆盖 Daily Notes 插件配置 |
-| 日记文件夹 | 日记存放路径 |
-| 日期格式 | moment.js 格式，如 `YYYY-MM-DD` |
-| 周记文件夹 | 周记独立存放路径 |
-| 周开始日 | 日历以周几作为一周起始 |
-| 展现周数 | 日历左侧显示周数标签 |
-| 热力图颜色阈值 | 5 档字数阈值，默认 50/150/300/500/800 |
+| Setting | Description |
+|---------|-------------|
+| Use Custom Diary Config | Override the Daily Notes plugin configuration |
+| Diary Folder | Path where diary entries are stored |
+| Date Format | Moment.js format, e.g. `YYYY-MM-DD` |
+| Weekly Note Folder | Separate folder for weekly notes |
+| Week Start Day | Which day marks the beginning of a week |
+| Show Week Numbers | Display week number labels on the left side of the calendar |
+| Heatmap Color Thresholds | 5-tier word count thresholds, default: 50/150/300/500/800 |
 
-## 命令面板
+## Command Palette
 
-- `Calendar Pro: 打开 Calendar Pro`
-- `Calendar Pro: 关闭 Calendar Pro`
-- `Calendar Pro: 跳转到今天`
+- `Calendar Pro: Open Calendar Pro`
+- `Calendar Pro: Close Calendar Pro`
+- `Calendar Pro: Jump to Today`
 
-## 兼容性
+## Compatibility
 
-- Obsidian 最低版本：v0.15.0
-- 支持桌面端和移动端
+- Minimum Obsidian version: v0.15.0
+- Supports both desktop and mobile
 
 ## License
 

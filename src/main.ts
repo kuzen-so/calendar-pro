@@ -77,6 +77,8 @@ export default class DiaryHeatmapPlugin extends Plugin {
     const loaded = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
     this.settings.thresholds = this.validateThresholds(this.settings.thresholds);
+    this.settings.colors = this.validateColors(this.settings.colors);
+    this.settings.darkColors = this.validateColors(this.settings.darkColors);
   }
 
   private validateThresholds(thresholds: number[]): number[] {
@@ -90,6 +92,17 @@ export default class DiaryHeatmapPlugin extends Plugin {
       }
     }
     return valid;
+  }
+
+  private validateColors(colors: string[]): string[] {
+    if (!Array.isArray(colors) || colors.length !== 6) {
+      return [...DEFAULT_SETTINGS.colors];
+    }
+    return colors.map((c) =>
+      typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c)
+        ? c
+        : "#999999"
+    );
   }
 
   async saveSettings(): Promise<void> {
