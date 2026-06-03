@@ -173,12 +173,6 @@ export class CalendarRenderer {
       { diaryDays: 0, totalWords: 0 }
     );
 
-    const hasAnyDiary = data.some((d) => d.exists);
-    if (!hasAnyDiary) {
-      const emptyTip = wrapper.createDiv("diary-heatmap-empty-tip");
-      emptyTip.setText("本月暂无日记，点击任意日期开始记录");
-    }
-
     const calendarFooter = wrapper.createDiv(
       "diary-heatmap-calendar-footer"
     );

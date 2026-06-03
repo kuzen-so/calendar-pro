@@ -512,7 +512,8 @@
 }
 
 .diary-heatmap-calendar-week-label.week-number:hover {
-  text-decoration: underline;
+  background: var(--background-modifier-hover);
+  border-radius: 4px;
 }
 
 .weekly-dots {
@@ -600,8 +601,9 @@
   border-style: solid;
 }
 
-.diary-heatmap-calendar-cell.out-of-month .day-number {
-  opacity: 0.3;
+/* 非本月日期的底部圆点弱化显示 */
+.diary-heatmap-calendar-cell.out-of-month .diary-dots {
+  opacity: 0.25;
 }
 
 /* 今天高亮：仅数字变色 */
@@ -627,9 +629,10 @@
   pointer-events: none;
 }
 
+/* Calendar: 日期数字统一颜色，不再和字数等级挂钩 */
 .diary-heatmap-calendar-cell .day-number {
-  font-size: 12px;
-  color: var(--text-normal);
+  font-size: 11px;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -639,7 +642,7 @@
 }
 
 .diary-heatmap-calendar-cell.has-diary .day-number {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .diary-heatmap-calendar-cell {
@@ -654,12 +657,6 @@
 
 .diary-heatmap-calendar-cell:hover .day-number {
   color: var(--text-accent);
-}
-
-/* Calendar: 日期数字统一颜色，不再和字数等级挂钩 */
-.diary-heatmap-calendar-cell .day-number {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 /* 有日记的日期：加粗 */

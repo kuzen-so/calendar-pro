@@ -73,6 +73,33 @@ export class DataCache {
   }
 
   /**
+   * 获取任意文件的字数数据（带缓存）
+   */
+  async getFileData(filePath: string): Promise<{ wordCount: number; exists: boolean }> {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof TFile)) {
+      this.cache.delete(filePath);
+      return { wordCount: 0, exists: false };
+    }
+
+    const cached = this.cache.get(filePath);
+    if (cached && cached.mtime === file.stat.mtime) {
+      return { wordCount: cached.wordCount, exists: true };
+    }
+
+    try {
+      const content = await this.app.vault.read(file);
+      const wordCount = countWords(content);
+      this.cache.set(filePath, { wordCount, mtime: file.stat.mtime });
+      return { wordCount, exists: true };
+    } catch (e) {
+      console.error(`[Diary Heatmap] Failed to read ${filePath}:`, e);
+      this.cache.delete(filePath);
+      return { wordCount: 0, exists: true };
+    }
+  }
+
+  /**
    * 获取指定日期的日记数据（带缓存）
    */
   async getDayData(date: moment.Moment, config: DailyNotesConfig): Promise<{

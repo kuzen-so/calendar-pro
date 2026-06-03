@@ -51,6 +51,7 @@ export class HeatmapView extends ItemView {
   private resizeObserver: ResizeObserver | null = null;
   private weeklyExistsInMonth = new Set<number>();
   private weeklyWordCounts = new Map<number, number>();
+  private weeklyCountCache = new Map<number, number>();
   private diaryService: DiaryService;
   private heatmapRenderer: HeatmapRenderer;
   private calendarRenderer: CalendarRenderer;
@@ -98,7 +99,7 @@ export class HeatmapView extends ItemView {
       await this.loadWeeklyExists();
     }
     this.loadingEl.hide();
-    this.renderContent();
+    await this.renderContent();
 
     // 监听容器宽度变化，热力图实时重排（带防抖，避免拖拽时频繁重绘）
     this.resizeObserver = new ResizeObserver(() => {
@@ -126,6 +127,7 @@ export class HeatmapView extends ItemView {
       this.app.vault.on("create", (file) => {
         if (file instanceof TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
+          this.weeklyCountCache.clear();
           this.debouncedRefresh();
         }
       })
@@ -134,6 +136,7 @@ export class HeatmapView extends ItemView {
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
+          this.weeklyCountCache.clear();
           this.debouncedRefresh();
         }
       })
@@ -142,6 +145,7 @@ export class HeatmapView extends ItemView {
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
+          this.weeklyCountCache.clear();
           this.debouncedRefresh();
         }
       })
@@ -185,6 +189,9 @@ export class HeatmapView extends ItemView {
       this.containerElRef.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
     }
+    this.weeklyExistsInMonth.clear();
+    this.weeklyWordCounts.clear();
+    this.weeklyCountCache.clear();
     this.contentEl.empty();
   }
 
@@ -239,7 +246,7 @@ export class HeatmapView extends ItemView {
       if (this.viewMode === "calendar") {
         await this.loadWeeklyExists();
       }
-      this.renderContent();
+      await this.renderContent();
     } catch (e) {
       console.error("[Diary Heatmap] Refresh failed:", e);
     } finally {
@@ -249,7 +256,7 @@ export class HeatmapView extends ItemView {
   }
 
   /**
-   * 加载当前月份各周是否存在周记及字数
+   * 加载当前月份各周是否存在周记及字数（带缓存）
    */
   private async loadWeeklyExists(): Promise<void> {
     this.weeklyExistsInMonth.clear();
@@ -261,13 +268,13 @@ export class HeatmapView extends ItemView {
     const diaryFolder = getFolderPath(config);
     const folder = weeklyFolder || diaryFolder;
     const processedWeeks = new Set<number>();
-    const readPromises: Promise<void>[] = [];
+    const promises: Promise<void>[] = [];
 
-    this.data.forEach((d) => {
-      if (!d.date) return;
+    for (const d of this.data) {
+      if (!d.date) continue;
       const date = window.moment(d.date);
       const weekNum = date.week();
-      if (processedWeeks.has(weekNum)) return;
+      if (processedWeeks.has(weekNum)) continue;
       processedWeeks.add(weekNum);
 
       // 周记文件名可能因跨年而不一致：优先用视图年份，再尝试周实际所属年份
@@ -279,26 +286,24 @@ export class HeatmapView extends ItemView {
         candidates.push(`${weekYear}-第${weekNum}周.md`);
       }
 
-      for (const fileName of candidates) {
-        const filePath = folder
-          ? normalizePath(`${folder}/${fileName}`)
-          : fileName;
-        const file = this.app.vault.getAbstractFileByPath(filePath);
-        if (file instanceof TFile) {
-          this.weeklyExistsInMonth.add(weekNum);
-          readPromises.push(
-            this.app.vault.read(file).then((content) => {
-              this.weeklyWordCounts.set(weekNum, countWords(content));
-            }).catch(() => {
-              // 忽略读取失败，避免阻塞刷新
-            })
-          );
-          break;
-        }
-      }
-    });
+      promises.push(
+        (async () => {
+          for (const fileName of candidates) {
+            const filePath = folder
+              ? normalizePath(`${folder}/${fileName}`)
+              : fileName;
+            const { exists, wordCount } = await this.cache.getFileData(filePath);
+            if (exists) {
+              this.weeklyExistsInMonth.add(weekNum);
+              this.weeklyWordCounts.set(weekNum, wordCount);
+              break;
+            }
+          }
+        })()
+      );
+    }
 
-    await Promise.all(readPromises);
+    await Promise.all(promises);
   }
 
   /**
@@ -316,7 +321,7 @@ export class HeatmapView extends ItemView {
       isToday = this.currentYear === now.year();
     }
     this.todayBtn.toggleClass("is-disabled", isToday);
-    this.todayBtn.disabled = isToday;
+    (this.todayBtn as HTMLButtonElement).disabled = isToday;
   }
 
   private getSettings() {
@@ -325,6 +330,19 @@ export class HeatmapView extends ItemView {
 
   private async getConfig(): Promise<DailyNotesConfig> {
     return await this.plugin.getEffectiveConfig();
+  }
+
+  private getWeeklyCount(year: number): number {
+    const cached = this.weeklyCountCache.get(year);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const count = this.diaryService.countWeeklyNotes(
+      year,
+      this.plugin.settings.weeklyFolder
+    );
+    this.weeklyCountCache.set(year, count);
+    return count;
   }
 
   /**
@@ -445,8 +463,9 @@ export class HeatmapView extends ItemView {
     }
   }
 
-  private renderContent(): void {
+  private async renderContent(): Promise<void> {
     if (this.viewMode === "heatmap") {
+      const weeklyCount = this.getWeeklyCount(this.currentYear);
       this.heatmapRenderer.render(
         this.contentArea,
         this.footerArea,
@@ -456,7 +475,8 @@ export class HeatmapView extends ItemView {
         this.plugin.settings.colors,
         this.plugin.settings.darkColors,
         this.plugin.settings.weeklyFolder,
-        this.containerElRef.clientWidth - 16
+        this.containerElRef.clientWidth - 16,
+        weeklyCount
       );
     } else {
       this.calendarRenderer.render(
@@ -476,6 +496,7 @@ export class HeatmapView extends ItemView {
    * 仅重绘热力图布局（不重新加载数据），用于 ResizeObserver 实时响应
    */
   private renderHeatmapLayout(): void {
+    const weeklyCount = this.weeklyCountCache.get(this.currentYear) ?? 0;
     this.heatmapRenderer.render(
       this.contentArea,
       this.footerArea,
@@ -485,7 +506,8 @@ export class HeatmapView extends ItemView {
       this.plugin.settings.colors,
       this.plugin.settings.darkColors,
       this.plugin.settings.weeklyFolder,
-      this.containerElRef.clientWidth - 16
+      this.containerElRef.clientWidth - 16,
+      weeklyCount
     );
   }
 

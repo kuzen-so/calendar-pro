@@ -1,4 +1,4 @@
-import { App, TFile, TFolder } from "obsidian";
+import { App } from "obsidian";
 import { DiaryService } from "../../services/diary-service";
 import { HeatmapDayData, getHeatLevel } from "../../utils/heatmap-data";
 
@@ -17,7 +17,8 @@ export class HeatmapRenderer {
     colors: string[],
     darkColors: string[],
     weeklyFolder: string,
-    containerWidth: number
+    containerWidth: number,
+    weeklyCount: number
   ): void {
     const isDark = document.body.classList.contains("theme-dark");
     const activeColors = isDark ? darkColors : colors;
@@ -159,14 +160,6 @@ export class HeatmapRenderer {
       { diaryCount: 0, totalWords: 0 }
     );
 
-    const weeklyCount = this.countWeeklyNotes(year, weeklyFolder);
-
-    const hasAnyDiary = data.some((d) => d.exists);
-    if (!hasAnyDiary) {
-      const emptyTip = wrapper.createDiv("diary-heatmap-empty-tip");
-      emptyTip.setText("暂无日记，点击任意日期开始记录");
-    }
-
     const bottomStats = wrapper.createDiv("diary-heatmap-bottom-stats");
     bottomStats.createSpan({
       cls: "diary-heatmap-stats-text",
@@ -188,30 +181,4 @@ export class HeatmapRenderer {
     footer.appendChild(wrapper);
   }
 
-  private countWeeklyNotes(year: number, weeklyFolder: string): number {
-    const prefix = `${year}-第`;
-    const suffix = "周.md";
-
-    if (weeklyFolder) {
-      const folder = this.app.vault.getAbstractFileByPath(weeklyFolder);
-      if (folder instanceof TFolder) {
-        let count = 0;
-        for (const child of folder.children) {
-          if (child instanceof TFile && child.extension === "md") {
-            const name = child.name;
-            if (name.startsWith(prefix) && name.endsWith(suffix)) {
-              count++;
-            }
-          }
-        }
-        return count;
-      }
-    }
-
-    // 未设置周记文件夹时回退到全库扫描
-    const weeklyPattern = new RegExp(`^${year}-第\\d{1,2}周\\.md$`);
-    return this.app.vault.getFiles().filter((f) =>
-      weeklyPattern.test(f.name)
-    ).length;
-  }
 }

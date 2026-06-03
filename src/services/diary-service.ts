@@ -1,4 +1,4 @@
-import { App, TFile, Menu, Notice, normalizePath } from "obsidian";
+import { App, TFile, TFolder, Menu, Notice, normalizePath } from "obsidian";
 import DiaryHeatmapPlugin from "../main";
 import { HeatmapDayData, DataCache } from "../utils/heatmap-data";
 import {
@@ -15,6 +15,35 @@ export class DiaryService {
     private cache: DataCache,
     private onRefresh: () => void
   ) {}
+
+  /**
+   * 统计指定年份的周记数量
+   */
+  countWeeklyNotes(year: number, weeklyFolder: string): number {
+    const prefix = `${year}-第`;
+    const suffix = "周.md";
+
+    if (weeklyFolder) {
+      const folder = this.app.vault.getAbstractFileByPath(weeklyFolder);
+      if (folder instanceof TFolder) {
+        let count = 0;
+        for (const child of folder.children) {
+          if (child instanceof TFile && child.extension === "md") {
+            const name = child.name;
+            if (name.startsWith(prefix) && name.endsWith(suffix)) {
+              count++;
+            }
+          }
+        }
+        return count;
+      }
+    }
+
+    const weeklyPattern = new RegExp(`^${year}-第\\d{1,2}周\\.md$`);
+    return this.app.vault.getFiles().filter((f) =>
+      weeklyPattern.test(f.name)
+    ).length;
+  }
 
   openDiary(filePath: string): void {
     const file = this.app.vault.getAbstractFileByPath(filePath);

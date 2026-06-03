@@ -60,11 +60,9 @@ export default class DiaryHeatmapPlugin extends Plugin {
     if (this.app.workspace.layoutReady) {
       this.initLeaf();
     } else {
-      this.registerEvent(
-        this.app.workspace.on("layout-ready", () => {
-          this.initLeaf();
-        })
-      );
+      this.app.workspace.onLayoutReady(() => {
+        this.initLeaf();
+      });
     }
   }
 
@@ -114,7 +112,9 @@ export default class DiaryHeatmapPlugin extends Plugin {
     if (workspace.getLeavesOfType(VIEW_TYPE_DIARY_HEATMAP).length > 0) {
       return;
     }
-    workspace.getRightLeaf(false).setViewState({
+    const leaf = workspace.getRightLeaf(false);
+    if (!leaf) return;
+    leaf.setViewState({
       type: VIEW_TYPE_DIARY_HEATMAP,
     });
   }
@@ -127,6 +127,7 @@ export default class DiaryHeatmapPlugin extends Plugin {
       return;
     }
     const leaf = workspace.getRightLeaf(false);
+    if (!leaf) return;
     await leaf.setViewState({
       type: VIEW_TYPE_DIARY_HEATMAP,
       active: true,
