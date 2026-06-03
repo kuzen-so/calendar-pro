@@ -82,7 +82,7 @@ var HeatmapSettingTab = class extends import_obsidian.PluginSettingTab {
       })
     );
     new import_obsidian.Setting(containerEl).setName("\u5468\u5F00\u59CB\u65E5").setDesc("\u65E5\u5386\u89C6\u56FE\u4EE5\u661F\u671F\u51E0\u4F5C\u4E3A\u4E00\u5468\u7684\u5F00\u59CB").addDropdown(
-      (dropdown) => dropdown.addOption("0", "\u5468\u65E5").addOption("1", "\u5468\u4E00").addOption("2", "\u5468\u4E8C").addOption("3", "\u5468\u4E09").addOption("4", "\u5468\u56DB").addOption("5", "\u5468\u4E94").addOption("6", "\u5468\u516D").setValue(String(this.plugin.settings.weekStart)).onChange(async (value) => {
+      (dropdown) => dropdown.addOption("0", "\u5468\u65E5").addOption("1", "\u5468\u4E00").setValue(String(this.plugin.settings.weekStart)).onChange(async (value) => {
         this.plugin.settings.weekStart = parseInt(value);
         await this.plugin.saveSettings();
         window.moment.updateLocale(window.moment.locale(), {
@@ -757,10 +757,14 @@ var CalendarRenderer = class {
   constructor(diaryService) {
     this.diaryService = diaryService;
   }
-  render(container, data, calendarDate, showWeekNumbers, weeklyExistsInMonth, weeklyWordCounts, thresholds) {
+  render(container, data, calendarDate, showWeekNumbers, weeklyExistsInMonth, weeklyWordCounts, thresholds, weekStart) {
     container.empty();
     const wrapper = container.createDiv("diary-heatmap-calendar-wrapper");
-    const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const allWeekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weekDays = [
+      ...allWeekDays.slice(weekStart),
+      ...allWeekDays.slice(0, weekStart)
+    ];
     const headerRow = wrapper.createDiv("diary-heatmap-calendar-header");
     if (showWeekNumbers) {
       headerRow.createDiv("diary-heatmap-calendar-header-spacer");
@@ -1320,7 +1324,8 @@ var HeatmapView = class extends import_obsidian7.ItemView {
         this.plugin.settings.showWeekNumbers,
         this.weeklyExistsInMonth,
         this.weeklyWordCounts,
-        this.plugin.settings.thresholds
+        this.plugin.settings.thresholds,
+        this.plugin.settings.weekStart
       );
     }
   }

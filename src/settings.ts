@@ -115,11 +115,6 @@ export class HeatmapSettingTab extends PluginSettingTab {
         dropdown
           .addOption("0", "周日")
           .addOption("1", "周一")
-          .addOption("2", "周二")
-          .addOption("3", "周三")
-          .addOption("4", "周四")
-          .addOption("5", "周五")
-          .addOption("6", "周六")
           .setValue(String(this.plugin.settings.weekStart))
           .onChange(async (value) => {
             this.plugin.settings.weekStart = parseInt(value);

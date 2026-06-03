@@ -466,7 +466,8 @@ export class HeatmapView extends ItemView {
         this.plugin.settings.showWeekNumbers,
         this.weeklyExistsInMonth,
         this.weeklyWordCounts,
-        this.plugin.settings.thresholds
+        this.plugin.settings.thresholds,
+        this.plugin.settings.weekStart
       );
     }
   }

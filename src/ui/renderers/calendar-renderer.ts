@@ -12,12 +12,17 @@ export class CalendarRenderer {
     showWeekNumbers: boolean,
     weeklyExistsInMonth: Set<number>,
     weeklyWordCounts: Map<number, number>,
-    thresholds: number[]
+    thresholds: number[],
+    weekStart: number
   ): void {
     container.empty();
 
     const wrapper = container.createDiv("diary-heatmap-calendar-wrapper");
-    const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const allWeekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weekDays = [
+      ...allWeekDays.slice(weekStart),
+      ...allWeekDays.slice(0, weekStart),
+    ];
 
     const headerRow = wrapper.createDiv("diary-heatmap-calendar-header");
     if (showWeekNumbers) {
