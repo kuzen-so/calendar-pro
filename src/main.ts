@@ -74,7 +74,22 @@ export default class DiaryHeatmapPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    this.settings.thresholds = this.validateThresholds(this.settings.thresholds);
+  }
+
+  private validateThresholds(thresholds: number[]): number[] {
+    if (!Array.isArray(thresholds) || thresholds.length !== 5) {
+      return [...DEFAULT_SETTINGS.thresholds];
+    }
+    const valid = thresholds.map((t) => Math.max(1, Math.round(Number(t))));
+    for (let i = 1; i < valid.length; i++) {
+      if (valid[i] <= valid[i - 1]) {
+        valid[i] = valid[i - 1] + 50;
+      }
+    }
+    return valid;
   }
 
   async saveSettings(): Promise<void> {

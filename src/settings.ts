@@ -13,7 +13,7 @@ export interface HeatmapSettings {
 }
 
 export const DEFAULT_SETTINGS: HeatmapSettings = {
-  thresholds: [50, 150, 300, 500],
+  thresholds: [50, 150, 300, 500, 800],
   defaultYear: "current",
   customFolder: "",
   customFormat: "YYYY-MM-DD",
@@ -137,5 +137,50 @@ export class HeatmapSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // 热力图字数阈值设置
+    containerEl.createEl("h3", { text: "热力图颜色阈值" });
+    const thresholdDesc = containerEl.createEl("p", {
+      text: "设置 5 档字数阈值，用于划分热力图颜色深浅（需递增）",
+      cls: "setting-item-description",
+    });
+    thresholdDesc.style.marginBottom = "12px";
+
+    const thresholdContainer = containerEl.createDiv();
+    thresholdContainer.style.display = "grid";
+    thresholdContainer.style.gridTemplateColumns = "repeat(5, 1fr)";
+    thresholdContainer.style.gap = "8px";
+    thresholdContainer.style.marginBottom = "16px";
+
+    const labels = ["浅 (≤)", "中浅 (≤)", "中 (≤)", "中深 (≤)", "深 (≤)"];
+    this.plugin.settings.thresholds.forEach((val, idx) => {
+      const box = thresholdContainer.createDiv();
+      box.createEl("label", {
+        text: labels[idx],
+        cls: "setting-item-name",
+      }).style.fontSize = "11px";
+      const input = box.createEl("input", {
+        type: "number",
+        value: String(val),
+      });
+      input.style.width = "100%";
+      input.style.padding = "4px 6px";
+      input.style.borderRadius = "4px";
+      input.style.border = "1px solid var(--background-modifier-border)";
+      input.style.background = "var(--background-modifier-form-field)";
+      input.style.color = "var(--text-normal)";
+      input.addEventListener("change", async () => {
+        const num = Math.max(1, Math.round(Number(input.value)));
+        this.plugin.settings.thresholds[idx] = num;
+        // 自动修正递增顺序
+        for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
+          if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
+            this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+          }
+        }
+        await this.plugin.saveSettings();
+        this.display(); // 刷新显示修正后的值
+      });
+    });
   }
 }

@@ -42,13 +42,23 @@
 }
 
 .diary-heatmap-tab {
-  padding: 3px 10px;
+  padding: 4px;
   border-radius: 4px;
-  font-size: 12px;
   cursor: pointer;
   color: var(--text-muted);
   transition: background 0.15s, color 0.15s;
   user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.diary-heatmap-tab svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
 }
 
 .diary-heatmap-tab.active {
@@ -268,13 +278,13 @@
   cursor: default;
 }
 
-/* Heat levels - coffee theme */
+/* Heat levels - green theme */
 .diary-heatmap-cell.level-0 {
   background: var(--background-modifier-border);
 }
 
 .diary-heatmap-cell.level-1 {
-  background: #f5ebe0;
+  background: #ddf4e0;
 }
 
 /* 月份小标记：直接印在格子内居中，无背景遮挡 */
@@ -293,37 +303,58 @@
   transition: opacity 0.2s ease;
 }
 
+.theme-light .diary-heatmap-month-badge {
+  color: #000000;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.8), 0 0 1px rgba(255, 255, 255, 1);
+}
+
 .diary-heatmap-month-badge.dimmed {
   opacity: 0.3;
 }
 
 .diary-heatmap-cell.level-2 {
-  background: #e6ccb2;
+  background: #9be9a8;
 }
 
 .diary-heatmap-cell.level-3 {
-  background: #d4a373;
+  background: #40c463;
 }
 
 .diary-heatmap-cell.level-4 {
-  background: #9c6644;
+  background: #216e39;
+}
+
+.diary-heatmap-cell.level-5 {
+  background: #0e4429;
+}
+
+.diary-heatmap-cell.level-6 {
+  background: #052814;
 }
 
 /* Dark mode */
 .theme-dark .diary-heatmap-cell.level-1 {
-  background: #3e2723;
+  background: #0e4429;
 }
 
 .theme-dark .diary-heatmap-cell.level-2 {
-  background: #5d4037;
+  background: #006d32;
 }
 
 .theme-dark .diary-heatmap-cell.level-3 {
-  background: #8d6e63;
+  background: #26a641;
 }
 
 .theme-dark .diary-heatmap-cell.level-4 {
-  background: #d7ccc8;
+  background: #39d353;
+}
+
+.theme-dark .diary-heatmap-cell.level-5 {
+  background: #56d364;
+}
+
+.theme-dark .diary-heatmap-cell.level-6 {
+  background: #7ee787;
 }
 
 /* Tooltip */
@@ -514,6 +545,14 @@
   font-weight: 700;
 }
 
+.diary-heatmap-calendar-week-label.is-active-week .weekly-dot {
+  border-color: var(--background-primary);
+}
+
+.diary-heatmap-calendar-week-label.is-active-week .weekly-dot.solid {
+  background: var(--background-primary);
+}
+
 .diary-heatmap-calendar-cell {
   width: 100%;
   display: flex;
@@ -652,3 +691,39 @@
   color: var(--text-muted);
   font-weight: 500;
 }
+
+/* Heatmap legend */
+.diary-heatmap-legend-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.diary-heatmap-legend-label {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.diary-heatmap-legend-cells {
+  display: flex;
+  gap: 2px;
+}
+
+.diary-heatmap-legend-cells .legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* Empty state tip */
+.diary-heatmap-empty-tip {
+  text-align: center;
+  padding: 16px 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+

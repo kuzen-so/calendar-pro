@@ -23,12 +23,12 @@ __export(main_exports, {
   default: () => DiaryHeatmapPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian5 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
-  thresholds: [50, 150, 300, 500],
+  thresholds: [50, 150, 300, 500, 800],
   defaultYear: "current",
   customFolder: "",
   customFormat: "YYYY-MM-DD",
@@ -94,14 +94,54 @@ var HeatmapSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    containerEl.createEl("h3", { text: "\u70ED\u529B\u56FE\u989C\u8272\u9608\u503C" });
+    const thresholdDesc = containerEl.createEl("p", {
+      text: "\u8BBE\u7F6E 5 \u6863\u5B57\u6570\u9608\u503C\uFF0C\u7528\u4E8E\u5212\u5206\u70ED\u529B\u56FE\u989C\u8272\u6DF1\u6D45\uFF08\u9700\u9012\u589E\uFF09",
+      cls: "setting-item-description"
+    });
+    thresholdDesc.style.marginBottom = "12px";
+    const thresholdContainer = containerEl.createDiv();
+    thresholdContainer.style.display = "grid";
+    thresholdContainer.style.gridTemplateColumns = "repeat(5, 1fr)";
+    thresholdContainer.style.gap = "8px";
+    thresholdContainer.style.marginBottom = "16px";
+    const labels = ["\u6D45 (\u2264)", "\u4E2D\u6D45 (\u2264)", "\u4E2D (\u2264)", "\u4E2D\u6DF1 (\u2264)", "\u6DF1 (\u2264)"];
+    this.plugin.settings.thresholds.forEach((val, idx) => {
+      const box = thresholdContainer.createDiv();
+      box.createEl("label", {
+        text: labels[idx],
+        cls: "setting-item-name"
+      }).style.fontSize = "11px";
+      const input = box.createEl("input", {
+        type: "number",
+        value: String(val)
+      });
+      input.style.width = "100%";
+      input.style.padding = "4px 6px";
+      input.style.borderRadius = "4px";
+      input.style.border = "1px solid var(--background-modifier-border)";
+      input.style.background = "var(--background-modifier-form-field)";
+      input.style.color = "var(--text-normal)";
+      input.addEventListener("change", async () => {
+        const num = Math.max(1, Math.round(Number(input.value)));
+        this.plugin.settings.thresholds[idx] = num;
+        for (let i = 1; i < this.plugin.settings.thresholds.length; i++) {
+          if (this.plugin.settings.thresholds[i] <= this.plugin.settings.thresholds[i - 1]) {
+            this.plugin.settings.thresholds[i] = this.plugin.settings.thresholds[i - 1] + 50;
+          }
+        }
+        await this.plugin.saveSettings();
+        this.display();
+      });
+    });
   }
 };
 
 // src/ui/heatmap-view.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
-// src/utils/heatmap-data.ts
-var import_obsidian3 = require("obsidian");
+// src/services/diary-service.ts
+var import_obsidian4 = require("obsidian");
 
 // src/utils/daily-notes-config.ts
 var import_obsidian2 = require("obsidian");
@@ -167,7 +207,182 @@ async function readTemplateContent(app, templatePath) {
   return "";
 }
 
+// src/ui/confirm-modal.ts
+var import_obsidian3 = require("obsidian");
+var ConfirmModal = class extends import_obsidian3.Modal {
+  constructor(app, message, onConfirm) {
+    super(app);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+    const buttonContainer = contentEl.createDiv({
+      cls: "modal-button-container"
+    });
+    new import_obsidian3.ButtonComponent(buttonContainer).setButtonText("\u53D6\u6D88").onClick(() => {
+      this.close();
+    });
+    new import_obsidian3.ButtonComponent(buttonContainer).setButtonText("\u521B\u5EFA").setCta().onClick(() => {
+      this.onConfirm();
+      this.close();
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/services/diary-service.ts
+var DiaryService = class {
+  constructor(app, plugin, cache, onRefresh) {
+    this.app = app;
+    this.plugin = plugin;
+    this.cache = cache;
+    this.onRefresh = onRefresh;
+  }
+  openDiary(filePath) {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof import_obsidian4.TFile) {
+      this.app.workspace.getLeaf().openFile(file);
+    }
+  }
+  async createDiary(dateStr) {
+    const config = await this.plugin.getEffectiveConfig();
+    const date = window.moment(dateStr, "YYYY-MM-DD");
+    const filePath = getDiaryFilePath(date, config);
+    const existing = this.app.vault.getAbstractFileByPath(filePath);
+    if (existing instanceof import_obsidian4.TFile) {
+      this.app.workspace.getLeaf().openFile(existing);
+      return;
+    }
+    const formattedDate = date.format("YYYY\u5E74M\u6708D\u65E5");
+    new ConfirmModal(
+      this.app,
+      `\u662F\u5426\u521B\u5EFA ${formattedDate} \u7684\u65E5\u8BB0\uFF1F`,
+      async () => {
+        try {
+          let content = "";
+          if (config.template) {
+            content = await readTemplateContent(this.app, config.template);
+          }
+          const dayOfWeek = date.format("dddd");
+          content = content.replace(/\{\{date\}\}/g, formattedDate).replace(/\{\{title\}\}/g, formattedDate).replace(/\{\{time\}\}/g, date.format("HH:mm")).replace(/\{\{date:([^}]+)\}\}/g, (_, fmt) => date.format(fmt)).replace(/\{\{time:([^}]+)\}\}/g, (_, fmt) => date.format(fmt)).replace(/\{\{yesterday\}\}/g, date.clone().subtract(1, "day").format("YYYY\u5E74M\u6708D\u65E5")).replace(/\{\{tomorrow\}\}/g, date.clone().add(1, "day").format("YYYY\u5E74M\u6708D\u65E5"));
+          if (!content.trim()) {
+            content = "";
+          }
+          const folder = getFolderPath(config);
+          if (folder && !await this.app.vault.adapter.exists(folder)) {
+            await this.app.vault.createFolder(folder);
+          }
+          const newFile = await this.app.vault.create(filePath, content);
+          this.app.workspace.getLeaf().openFile(newFile);
+          new import_obsidian4.Notice(`\u5DF2\u521B\u5EFA\u65E5\u8BB0: ${formattedDate}`);
+        } catch (e) {
+          console.error(`[Diary Heatmap] Failed to create diary:`, e);
+          new import_obsidian4.Notice("\u521B\u5EFA\u65E5\u8BB0\u5931\u8D25");
+        }
+      }
+    ).open();
+  }
+  async openOrCreateWeeklyDiary(year, week) {
+    const { filePath, folder } = await this.getWeeklyFileInfo(year, week);
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof import_obsidian4.TFile) {
+      this.app.workspace.getLeaf().openFile(file);
+      return;
+    }
+    new ConfirmModal(
+      this.app,
+      `\u662F\u5426\u521B\u5EFA ${year}\u5E74\u7B2C${week}\u5468\u7684\u5468\u8BB0\uFF1F`,
+      async () => {
+        try {
+          const content = "";
+          if (folder && !await this.app.vault.adapter.exists(folder)) {
+            await this.app.vault.createFolder(folder);
+          }
+          const newFile = await this.app.vault.create(filePath, content);
+          this.app.workspace.getLeaf().openFile(newFile);
+          new import_obsidian4.Notice(`\u5DF2\u521B\u5EFA\u5468\u8BB0: ${year}\u5E74\u7B2C${week}\u5468`);
+        } catch (e) {
+          console.error(`[Diary Heatmap] Failed to create weekly note:`, e);
+          new import_obsidian4.Notice("\u521B\u5EFA\u5468\u8BB0\u5931\u8D25");
+        }
+      }
+    ).open();
+  }
+  showCalendarContextMenu(evt, dayData) {
+    const file = this.app.vault.getAbstractFileByPath(dayData.filePath);
+    if (!(file instanceof import_obsidian4.TFile)) return;
+    const menu = new import_obsidian4.Menu();
+    menu.addItem(
+      (item) => item.setTitle("\u6253\u5F00\u65E5\u8BB0").setIcon("file-text").onClick(() => this.openDiary(dayData.filePath))
+    );
+    menu.addItem(
+      (item) => item.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("copy").onClick(() => {
+        navigator.clipboard.writeText(dayData.filePath);
+        new import_obsidian4.Notice("\u8DEF\u5F84\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F");
+      })
+    );
+    menu.addSeparator();
+    menu.addItem(
+      (item) => item.setTitle("\u5220\u9664\u65E5\u8BB0").setIcon("trash").onClick(async () => {
+        await this.app.fileManager.trashFile(file);
+        this.cache.invalidate(dayData.filePath);
+        this.onRefresh();
+        new import_obsidian4.Notice("\u65E5\u8BB0\u5DF2\u79FB\u81F3\u56DE\u6536\u7AD9");
+      })
+    );
+    menu.showAtMouseEvent(evt);
+  }
+  async showWeeklyContextMenu(evt, year, week) {
+    const { filePath } = await this.getWeeklyFileInfo(year, week);
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof import_obsidian4.TFile) {
+      const menu = new import_obsidian4.Menu();
+      menu.addItem(
+        (item) => item.setTitle("\u6253\u5F00\u5468\u8BB0").setIcon("file-text").onClick(() => this.openDiary(filePath))
+      );
+      menu.addItem(
+        (item) => item.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("copy").onClick(() => {
+          navigator.clipboard.writeText(filePath);
+          new import_obsidian4.Notice("\u8DEF\u5F84\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F");
+        })
+      );
+      menu.addSeparator();
+      menu.addItem(
+        (item) => item.setTitle("\u5220\u9664\u5468\u8BB0").setIcon("trash").onClick(async () => {
+          await this.app.fileManager.trashFile(file);
+          this.onRefresh();
+          new import_obsidian4.Notice("\u5468\u8BB0\u5DF2\u79FB\u81F3\u56DE\u6536\u7AD9");
+        })
+      );
+      menu.showAtMouseEvent(evt);
+    } else {
+      const menu = new import_obsidian4.Menu();
+      menu.addItem(
+        (item) => item.setTitle("\u521B\u5EFA\u5468\u8BB0").setIcon("plus").onClick(() => this.openOrCreateWeeklyDiary(year, week))
+      );
+      menu.showAtMouseEvent(evt);
+    }
+  }
+  async getWeeklyFileInfo(year, week) {
+    const weeklyFolder = this.plugin.settings.weeklyFolder ? (0, import_obsidian4.normalizePath)(this.plugin.settings.weeklyFolder) : "";
+    const config = await this.plugin.getEffectiveConfig();
+    const diaryFolder = getFolderPath(config);
+    const folder = weeklyFolder || diaryFolder;
+    const fileName = `${year}-\u7B2C${week}\u5468.md`;
+    const filePath = folder ? (0, import_obsidian4.normalizePath)(`${folder}/${fileName}`) : fileName;
+    return { filePath, folder };
+  }
+};
+
+// src/ui/renderers/heatmap-renderer.ts
+var import_obsidian6 = require("obsidian");
+
 // src/utils/heatmap-data.ts
+var import_obsidian5 = require("obsidian");
 function countWords(content) {
   let text = content;
   if (text.startsWith("---")) {
@@ -211,7 +426,7 @@ var DataCache = class {
   async getDayData(date, config) {
     const filePath = getDiaryFilePath(date, config);
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian3.TFile)) {
+    if (!(file instanceof import_obsidian5.TFile)) {
       if (this.cache.has(filePath)) {
         this.cache.delete(filePath);
       }
@@ -294,9 +509,377 @@ async function getMonthHeatmapData(cache, config, year, month, weekStart = 1) {
   return cache.getRangeData(config, start, end);
 }
 
+// src/ui/renderers/heatmap-renderer.ts
+var HeatmapRenderer = class {
+  constructor(app, diaryService) {
+    this.app = app;
+    this.diaryService = diaryService;
+  }
+  render(container, footer, data, year, thresholds, weeklyFolder, containerWidth) {
+    container.empty();
+    footer.empty();
+    const wrapper = container.createDiv("diary-heatmap-grid-wrapper");
+    const now = window.moment();
+    let topStatsText = "";
+    if (year === now.year()) {
+      const endOfYear = window.moment(`${year}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
+      const remainingMonths = Math.max(0, endOfYear.diff(now, "months"));
+      const remainingDays = Math.max(0, endOfYear.diff(now, "days"));
+      const remainingHours = Math.max(0, endOfYear.diff(now, "hours"));
+      topStatsText = `\u672C\u5E74\u5EA6\u5269\u4F59 ${remainingMonths} \u6708 \xB7 ${remainingDays} \u5929 \xB7 ${remainingHours} \u5C0F\u65F6`;
+    } else if (year < now.year()) {
+      const endOfYear = window.moment(`${year}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
+      const passedDays = Math.max(0, now.diff(endOfYear, "days"));
+      topStatsText = `\u8DDD\u79BB ${year} \u5E74\u5DF2\u8FC7\u53BB ${passedDays} \u5929`;
+    } else {
+      const startOfYear = window.moment(`${year}-01-01 00:00:00`, "YYYY-MM-DD HH:mm:ss");
+      const remainingDays = Math.max(0, startOfYear.diff(now, "days"));
+      topStatsText = `\u8DDD\u79BB ${year} \u5E74\u8FD8\u6709 ${remainingDays} \u5929`;
+    }
+    const topStats = wrapper.createDiv("diary-heatmap-top-stats");
+    topStats.createSpan({
+      cls: "diary-heatmap-stats-text",
+      text: topStatsText
+    });
+    const grid = wrapper.createDiv("diary-heatmap-grid");
+    const cellTotal = 14;
+    const maxCols = Math.max(1, Math.floor(containerWidth / cellTotal));
+    const totalCells = data.length;
+    const minRows = 1;
+    const maxRows = 20;
+    let cols = maxCols;
+    let rows = Math.ceil(totalCells / cols);
+    if (rows > maxRows) {
+      cols = Math.ceil(totalCells / maxRows);
+      rows = maxRows;
+    }
+    if (rows < minRows) {
+      cols = Math.ceil(totalCells / minRows);
+      rows = minRows;
+    }
+    grid.style.gridTemplateColumns = `repeat(${cols}, 12px)`;
+    grid.style.gridAutoFlow = "row";
+    const monthFirstIndices = /* @__PURE__ */ new Map();
+    data.forEach((day, index) => {
+      if (day.date) {
+        const month = window.moment(day.date).month();
+        if (!monthFirstIndices.has(month)) {
+          monthFirstIndices.set(month, index);
+        }
+      }
+    });
+    const fragment = document.createDocumentFragment();
+    const isCurrentYear = year === now.year();
+    data.forEach((day, index) => {
+      const cell = document.createElement("div");
+      cell.className = "diary-heatmap-cell";
+      const level = getHeatLevel(day.wordCount, thresholds);
+      cell.classList.add(`level-${level}`);
+      cell.setAttribute("data-date", day.date);
+      cell.setAttribute("data-count", String(day.wordCount));
+      if (day.date) {
+        const month = window.moment(day.date).month();
+        if (monthFirstIndices.get(month) === index) {
+          const monthBadge = document.createElement("span");
+          monthBadge.className = "diary-heatmap-month-badge";
+          if (!isCurrentYear || month !== now.month()) {
+            monthBadge.classList.add("dimmed");
+          }
+          monthBadge.textContent = String(month + 1);
+          cell.appendChild(monthBadge);
+        }
+      }
+      const dateStr = day.date ? window.moment(day.date).format("M\u6708D\u65E5 dddd") : "";
+      cell.setAttribute("data-tip", `${dateStr}: ${day.wordCount}\u5B57`);
+      if (day.inYear === false) {
+        cell.classList.add("out-of-year");
+      } else if (day.exists) {
+        cell.classList.add("has-diary");
+        cell.addEventListener("click", () => {
+          this.diaryService.openDiary(day.filePath);
+        });
+      } else if (day.date) {
+        cell.classList.add("no-diary");
+        cell.addEventListener("click", () => {
+          this.diaryService.createDiary(day.date);
+        });
+      } else {
+        cell.classList.add("empty-cell");
+      }
+      fragment.appendChild(cell);
+    });
+    const totalGridCells = cols * rows;
+    for (let i = data.length; i < totalGridCells; i++) {
+      const cell = document.createElement("div");
+      cell.className = "diary-heatmap-cell empty-cell";
+      fragment.appendChild(cell);
+    }
+    grid.appendChild(fragment);
+    const yearStats = data.reduce(
+      (acc, d) => {
+        if (d.exists && d.date && window.moment(d.date).year() === year) {
+          acc.diaryCount++;
+          acc.totalWords += d.wordCount;
+        }
+        return acc;
+      },
+      { diaryCount: 0, totalWords: 0 }
+    );
+    const weeklyCount = this.countWeeklyNotes(year, weeklyFolder);
+    const hasAnyDiary = data.some((d) => d.exists);
+    if (!hasAnyDiary) {
+      const emptyTip = wrapper.createDiv("diary-heatmap-empty-tip");
+      emptyTip.setText("\u6682\u65E0\u65E5\u8BB0\uFF0C\u70B9\u51FB\u4EFB\u610F\u65E5\u671F\u5F00\u59CB\u8BB0\u5F55");
+    }
+    const bottomStats = wrapper.createDiv("diary-heatmap-bottom-stats");
+    bottomStats.createSpan({
+      cls: "diary-heatmap-stats-text",
+      text: `\u672C\u5E74\u5EA6\u5171\u5199 ${yearStats.diaryCount} \u7BC7\u65E5\u8BB0 \u2022 ${weeklyCount} \u7BC7\u5468\u8BB0 \u2022 \u5171\u8BA1 ${yearStats.totalWords} \u5B57`
+    });
+    const legendRow = wrapper.createDiv("diary-heatmap-legend-row");
+    legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "\u5C11" });
+    const legendCells = legendRow.createDiv("diary-heatmap-legend-cells");
+    for (let i = 1; i <= 6; i++) {
+      legendCells.createDiv(`diary-heatmap-cell level-${i} legend-cell`);
+    }
+    legendRow.createSpan({ cls: "diary-heatmap-legend-label", text: "\u591A" });
+    footer.appendChild(wrapper);
+  }
+  countWeeklyNotes(year, weeklyFolder) {
+    const prefix = `${year}-\u7B2C`;
+    const suffix = "\u5468.md";
+    if (weeklyFolder) {
+      const folder = this.app.vault.getAbstractFileByPath(weeklyFolder);
+      if (folder instanceof import_obsidian6.TFolder) {
+        let count = 0;
+        for (const child of folder.children) {
+          if (child instanceof import_obsidian6.TFile && child.extension === "md") {
+            const name = child.name;
+            if (name.startsWith(prefix) && name.endsWith(suffix)) {
+              count++;
+            }
+          }
+        }
+        return count;
+      }
+    }
+    const weeklyPattern = new RegExp(`^${year}-\u7B2C\\d{1,2}\u5468\\.md$`);
+    return this.app.vault.getFiles().filter(
+      (f) => weeklyPattern.test(f.name)
+    ).length;
+  }
+};
+
+// src/ui/renderers/calendar-renderer.ts
+var CalendarRenderer = class {
+  constructor(diaryService) {
+    this.diaryService = diaryService;
+  }
+  render(container, data, calendarDate, showWeekNumbers, weeklyExistsInMonth, weeklyWordCounts, thresholds) {
+    container.empty();
+    const wrapper = container.createDiv("diary-heatmap-calendar-wrapper");
+    const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const headerRow = wrapper.createDiv("diary-heatmap-calendar-header");
+    if (showWeekNumbers) {
+      headerRow.createDiv("diary-heatmap-calendar-header-spacer");
+    }
+    weekDays.forEach((d) => {
+      headerRow.createDiv("diary-heatmap-calendar-weekday").setText(d);
+    });
+    const gridArea = wrapper.createDiv("diary-heatmap-calendar-grid-area");
+    if (!showWeekNumbers) {
+      gridArea.classList.add("no-week-numbers");
+    }
+    const weeks = this.groupByWeeks(data);
+    const fragment = document.createDocumentFragment();
+    weeks.forEach((week) => {
+      const firstDayOfWeek = week.find((d) => d.date);
+      let weekNum = 0;
+      if (firstDayOfWeek) {
+        weekNum = window.moment(firstDayOfWeek.date).week();
+      }
+      if (showWeekNumbers) {
+        const weekLabelEl = document.createElement("div");
+        weekLabelEl.className = "diary-heatmap-calendar-week-label";
+        if (weekNum > 0) {
+          weekLabelEl.classList.add("week-number");
+          weekLabelEl.setAttribute("data-week-num", String(weekNum));
+          weekLabelEl.textContent = String(weekNum);
+          weekLabelEl.addEventListener("click", () => {
+            this.diaryService.openOrCreateWeeklyDiary(
+              calendarDate.year(),
+              weekNum
+            );
+          });
+          weekLabelEl.addEventListener("contextmenu", (evt) => {
+            evt.preventDefault();
+            this.diaryService.showWeeklyContextMenu(
+              evt,
+              calendarDate.year(),
+              weekNum
+            );
+          });
+          if (weeklyExistsInMonth.has(weekNum)) {
+            const wordCount = weeklyWordCounts.get(weekNum) || 0;
+            const dots = this.getWeeklyDots(wordCount, thresholds);
+            const dotContainer = document.createElement("div");
+            dotContainer.className = "weekly-dots";
+            dots.forEach((isSolid) => {
+              const dot = document.createElement("span");
+              dot.className = isSolid ? "weekly-dot solid" : "weekly-dot";
+              dotContainer.appendChild(dot);
+            });
+            weekLabelEl.appendChild(dotContainer);
+          }
+        }
+        fragment.appendChild(weekLabelEl);
+      }
+      week.forEach((dayData) => {
+        const cell = document.createElement("div");
+        cell.className = "diary-heatmap-calendar-cell";
+        if (!dayData.date) {
+          cell.classList.add("empty");
+          fragment.appendChild(cell);
+          return;
+        }
+        const date = window.moment(dayData.date);
+        const isCurrentMonth = date.month() === calendarDate.month() && date.year() === calendarDate.year();
+        const isToday = date.isSame(window.moment(), "day");
+        const dayNum = document.createElement("span");
+        dayNum.className = "day-number";
+        dayNum.textContent = date.format("D");
+        cell.appendChild(dayNum);
+        if (dayData.exists) {
+          const level = getHeatLevel(dayData.wordCount, thresholds);
+          cell.classList.add(`level-${level}`, "has-diary");
+          cell.setAttribute(
+            "data-tip",
+            `${date.format("MMM D, dddd")}: ${dayData.wordCount}\u5B57`
+          );
+          cell.setAttribute("data-file-path", dayData.filePath);
+          const dots = this.getWeeklyDots(dayData.wordCount, thresholds);
+          const dotContainer = document.createElement("div");
+          dotContainer.className = "diary-dots";
+          dots.forEach((isSolid) => {
+            const dot = document.createElement("span");
+            dot.className = isSolid ? "diary-dot solid" : "diary-dot";
+            dotContainer.appendChild(dot);
+          });
+          cell.appendChild(dotContainer);
+        } else {
+          cell.classList.add("no-diary");
+        }
+        if (!isCurrentMonth) {
+          cell.classList.add("out-of-month");
+        }
+        if (isToday) {
+          cell.classList.add("is-today");
+        }
+        cell.addEventListener("click", () => {
+          if (dayData.exists) {
+            this.diaryService.openDiary(dayData.filePath);
+          } else {
+            this.diaryService.createDiary(dayData.date);
+          }
+        });
+        if (dayData.exists) {
+          cell.addEventListener("contextmenu", (evt) => {
+            evt.preventDefault();
+            this.diaryService.showCalendarContextMenu(evt, dayData);
+          });
+        }
+        fragment.appendChild(cell);
+      });
+    });
+    gridArea.appendChild(fragment);
+    const stats = data.reduce(
+      (acc, d) => {
+        if (!d.date) return acc;
+        const date = window.moment(d.date);
+        if (date.month() === calendarDate.month() && date.year() === calendarDate.year()) {
+          acc.totalWords += d.wordCount;
+          if (d.exists) acc.diaryDays++;
+        }
+        return acc;
+      },
+      { diaryDays: 0, totalWords: 0 }
+    );
+    const hasAnyDiary = data.some((d) => d.exists);
+    if (!hasAnyDiary) {
+      const emptyTip = wrapper.createDiv("diary-heatmap-empty-tip");
+      emptyTip.setText("\u672C\u6708\u6682\u65E0\u65E5\u8BB0\uFF0C\u70B9\u51FB\u4EFB\u610F\u65E5\u671F\u5F00\u59CB\u8BB0\u5F55");
+    }
+    const calendarFooter = wrapper.createDiv(
+      "diary-heatmap-calendar-footer"
+    );
+    calendarFooter.createSpan({
+      cls: "diary-heatmap-calendar-footer-text",
+      text: `\u672C\u6708\u65E5\u8BB0 ${stats.diaryDays} \u7BC7 \xB7 \u5171\u8BA1 ${stats.totalWords} \u5B57`
+    });
+  }
+  /**
+   * 根据字数计算圆点状态
+   * 达到阈值显示实心，下一级显示虚线
+   * 0字: [空心]
+   * >=50: [实心, 空心]
+   * >=150: [实心, 实心, 空心]
+   * >=300: [实心, 实心, 实心, 空心]
+   * >=500: [实心, 实心, 实心, 实心, 空心]
+   * >=800: [实心, 实心, 实心, 实心, 实心]
+   */
+  getWeeklyDots(wordCount, thresholds) {
+    const dots = [];
+    for (const t of thresholds) {
+      if (wordCount >= t) {
+        dots.push(true);
+      } else {
+        dots.push(false);
+        break;
+      }
+    }
+    return dots;
+  }
+  groupByWeeks(data) {
+    const weeks = [];
+    let currentWeek = [];
+    data.forEach((day) => {
+      currentWeek.push(day);
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    });
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push({
+          date: "",
+          wordCount: 0,
+          exists: false,
+          filePath: ""
+        });
+      }
+      weeks.push(currentWeek);
+    }
+    const MIN_WEEKS = 6;
+    while (weeks.length < MIN_WEEKS) {
+      const emptyWeek = [];
+      for (let i = 0; i < 7; i++) {
+        emptyWeek.push({
+          date: "",
+          wordCount: 0,
+          exists: false,
+          filePath: ""
+        });
+      }
+      weeks.push(emptyWeek);
+    }
+    return weeks;
+  }
+};
+
 // src/ui/heatmap-view.ts
 var VIEW_TYPE_DIARY_HEATMAP = "diary-heatmap-view";
-var HeatmapView = class extends import_obsidian4.ItemView {
+var HeatmapView = class extends import_obsidian7.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.data = [];
@@ -306,11 +889,20 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     this.resizeObserver = null;
     this.weeklyExistsInMonth = /* @__PURE__ */ new Set();
     this.weeklyWordCounts = /* @__PURE__ */ new Map();
+    this.keydownHandler = null;
     this.plugin = plugin;
     this.currentYear = window.moment().year();
     this.calendarDate = window.moment();
     this.viewMode = "calendar";
     this.cache = new DataCache(this.app);
+    this.diaryService = new DiaryService(
+      this.app,
+      this.plugin,
+      this.cache,
+      () => this.debouncedRefresh()
+    );
+    this.heatmapRenderer = new HeatmapRenderer(this.app, this.diaryService);
+    this.calendarRenderer = new CalendarRenderer(this.diaryService);
   }
   getViewType() {
     return VIEW_TYPE_DIARY_HEATMAP;
@@ -329,6 +921,9 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     this.contentArea = this.containerElRef.createDiv();
     this.footerArea = this.containerElRef.createDiv();
     await this.loadData();
+    if (this.viewMode === "calendar") {
+      await this.loadWeeklyExists();
+    }
     this.loadingEl.hide();
     this.renderContent();
     this.resizeObserver = new ResizeObserver(() => {
@@ -350,7 +945,7 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     this.highlightActiveDiary();
     this.registerEvent(
       this.app.vault.on("create", (file) => {
-        if (file instanceof import_obsidian4.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian7.TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
           this.debouncedRefresh();
         }
@@ -358,7 +953,7 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
-        if (file instanceof import_obsidian4.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian7.TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
           this.debouncedRefresh();
         }
@@ -366,12 +961,33 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     );
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (file instanceof import_obsidian4.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian7.TFile && file.extension === "md") {
           this.cache.invalidate(file.path);
           this.debouncedRefresh();
         }
       })
     );
+    this.containerElRef.setAttribute("tabindex", "0");
+    this.keydownHandler = (evt) => {
+      if (evt.key === "ArrowLeft") {
+        evt.preventDefault();
+        if (this.viewMode === "heatmap") {
+          this.currentYear--;
+        } else {
+          this.calendarDate.subtract(1, "month");
+        }
+        this.debouncedRefresh();
+      } else if (evt.key === "ArrowRight") {
+        evt.preventDefault();
+        if (this.viewMode === "heatmap") {
+          this.currentYear++;
+        } else {
+          this.calendarDate.add(1, "month");
+        }
+        this.debouncedRefresh();
+      }
+    };
+    this.containerElRef.addEventListener("keydown", this.keydownHandler);
   }
   async onClose() {
     this.clearDebouncedRefresh();
@@ -382,6 +998,10 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
+    }
+    if (this.keydownHandler && this.containerElRef) {
+      this.containerElRef.removeEventListener("keydown", this.keydownHandler);
+      this.keydownHandler = null;
     }
     this.contentEl.empty();
   }
@@ -442,7 +1062,7 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     this.weeklyExistsInMonth.clear();
     this.weeklyWordCounts.clear();
     const config = await this.getConfig();
-    const weeklyFolder = this.plugin.settings.weeklyFolder ? (0, import_obsidian4.normalizePath)(this.plugin.settings.weeklyFolder) : "";
+    const weeklyFolder = this.plugin.settings.weeklyFolder ? (0, import_obsidian7.normalizePath)(this.plugin.settings.weeklyFolder) : "";
     const diaryFolder = getFolderPath(config);
     const folder = weeklyFolder || diaryFolder;
     const processedWeeks = /* @__PURE__ */ new Set();
@@ -453,17 +1073,26 @@ var HeatmapView = class extends import_obsidian4.ItemView {
       const weekNum = date.week();
       if (processedWeeks.has(weekNum)) return;
       processedWeeks.add(weekNum);
-      const fileName = `${this.calendarDate.year()}-\u7B2C${weekNum}\u5468.md`;
-      const filePath = folder ? (0, import_obsidian4.normalizePath)(`${folder}/${fileName}`) : fileName;
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file instanceof import_obsidian4.TFile) {
-        this.weeklyExistsInMonth.add(weekNum);
-        readPromises.push(
-          this.app.vault.read(file).then((content) => {
-            this.weeklyWordCounts.set(weekNum, countWords(content));
-          }).catch(() => {
-          })
-        );
+      const candidates = [
+        `${this.calendarDate.year()}-\u7B2C${weekNum}\u5468.md`
+      ];
+      const weekYear = date.weekYear();
+      if (weekYear !== this.calendarDate.year()) {
+        candidates.push(`${weekYear}-\u7B2C${weekNum}\u5468.md`);
+      }
+      for (const fileName of candidates) {
+        const filePath = folder ? (0, import_obsidian7.normalizePath)(`${folder}/${fileName}`) : fileName;
+        const file = this.app.vault.getAbstractFileByPath(filePath);
+        if (file instanceof import_obsidian7.TFile) {
+          this.weeklyExistsInMonth.add(weekNum);
+          readPromises.push(
+            this.app.vault.read(file).then((content) => {
+              this.weeklyWordCounts.set(weekNum, countWords(content));
+            }).catch(() => {
+            })
+          );
+          break;
+        }
       }
     });
     await Promise.all(readPromises);
@@ -504,7 +1133,7 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     const prevBtn = leftGroup.createEl("button", {
       cls: "diary-heatmap-nav-btn"
     });
-    (0, import_obsidian4.setIcon)(prevBtn, "chevron-left");
+    (0, import_obsidian7.setIcon)(prevBtn, "chevron-left");
     this.monthDisplayEl = leftGroup.createSpan({
       text: this.calendarDate.format("MMM"),
       cls: "diary-heatmap-month-text"
@@ -516,11 +1145,11 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     const nextBtn = leftGroup.createEl("button", {
       cls: "diary-heatmap-nav-btn"
     });
-    (0, import_obsidian4.setIcon)(nextBtn, "chevron-right");
+    (0, import_obsidian7.setIcon)(nextBtn, "chevron-right");
     this.todayBtn = leftGroup.createEl("button", {
       cls: "diary-heatmap-nav-btn diary-heatmap-today-btn"
     });
-    (0, import_obsidian4.setIcon)(this.todayBtn, "map-pin");
+    (0, import_obsidian7.setIcon)(this.todayBtn, "map-pin");
     prevBtn.addEventListener("click", () => {
       if (this.viewMode === "heatmap") {
         this.currentYear--;
@@ -545,13 +1174,13 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     });
     const tabContainer = titleRow.createDiv("diary-heatmap-tabs");
     this.calendarTab = tabContainer.createDiv({
-      cls: `diary-heatmap-tab ${this.viewMode === "calendar" ? "active" : ""}`,
-      text: "\u{1F4C5}"
+      cls: `diary-heatmap-tab ${this.viewMode === "calendar" ? "active" : ""}`
     });
+    (0, import_obsidian7.setIcon)(this.calendarTab, "calendar");
     this.heatmapTab = tabContainer.createDiv({
-      cls: `diary-heatmap-tab ${this.viewMode === "heatmap" ? "active" : ""}`,
-      text: "\u{1F525}"
+      cls: `diary-heatmap-tab ${this.viewMode === "heatmap" ? "active" : ""}`
     });
+    (0, import_obsidian7.setIcon)(this.heatmapTab, "layout-grid");
     this.calendarTab.addEventListener("click", () => {
       if (this.viewMode !== "calendar") {
         this.viewMode = "calendar";
@@ -590,398 +1219,40 @@ var HeatmapView = class extends import_obsidian4.ItemView {
   }
   renderContent() {
     if (this.viewMode === "heatmap") {
-      this.renderHeatmap();
+      this.heatmapRenderer.render(
+        this.contentArea,
+        this.footerArea,
+        this.data,
+        this.currentYear,
+        this.plugin.settings.thresholds,
+        this.plugin.settings.weeklyFolder,
+        this.containerElRef.clientWidth - 16
+      );
     } else {
-      this.renderCalendar();
+      this.calendarRenderer.render(
+        this.contentArea,
+        this.data,
+        this.calendarDate,
+        this.plugin.settings.showWeekNumbers,
+        this.weeklyExistsInMonth,
+        this.weeklyWordCounts,
+        this.plugin.settings.thresholds
+      );
     }
   }
   /**
    * 仅重绘热力图布局（不重新加载数据），用于 ResizeObserver 实时响应
    */
   renderHeatmapLayout() {
-    this.contentArea.empty();
-    this.footerArea.empty();
-    this.renderHeatmap();
-  }
-  renderHeatmap() {
-    const wrapper = this.contentArea.createDiv("diary-heatmap-grid-wrapper");
-    const now = window.moment();
-    let topStatsText = "";
-    if (this.currentYear === now.year()) {
-      const endOfYear = window.moment(`${this.currentYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
-      const remainingMonths = Math.max(0, endOfYear.diff(now, "months"));
-      const remainingDays = Math.max(0, endOfYear.diff(now, "days"));
-      const remainingHours = Math.max(0, endOfYear.diff(now, "hours"));
-      topStatsText = `\u672C\u5E74\u5EA6\u5269\u4F59 ${remainingMonths} \u6708 \xB7 ${remainingDays} \u5929 \xB7 ${remainingHours} \u5C0F\u65F6`;
-    } else if (this.currentYear < now.year()) {
-      const endOfYear = window.moment(`${this.currentYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss");
-      const passedDays = Math.max(0, now.diff(endOfYear, "days"));
-      topStatsText = `\u8DDD\u79BB ${this.currentYear} \u5E74\u5DF2\u8FC7\u53BB ${passedDays} \u5929`;
-    } else {
-      const startOfYear = window.moment(`${this.currentYear}-01-01 00:00:00`, "YYYY-MM-DD HH:mm:ss");
-      const remainingDays = Math.max(0, startOfYear.diff(now, "days"));
-      topStatsText = `\u8DDD\u79BB ${this.currentYear} \u5E74\u8FD8\u6709 ${remainingDays} \u5929`;
-    }
-    const topStats = wrapper.createDiv("diary-heatmap-top-stats");
-    topStats.createSpan({
-      cls: "diary-heatmap-stats-text",
-      text: topStatsText
-    });
-    const grid = wrapper.createDiv("diary-heatmap-grid");
-    const containerWidth = this.containerElRef.clientWidth - 16;
-    const cellTotal = 14;
-    const maxCols = Math.max(1, Math.floor(containerWidth / cellTotal));
-    const totalCells = this.data.length;
-    const minRows = 1;
-    const maxRows = 20;
-    let cols = maxCols;
-    let rows = Math.ceil(totalCells / cols);
-    if (rows > maxRows) {
-      cols = Math.ceil(totalCells / maxRows);
-      rows = maxRows;
-    }
-    if (rows < minRows) {
-      cols = Math.ceil(totalCells / minRows);
-      rows = minRows;
-    }
-    grid.style.gridTemplateColumns = `repeat(${cols}, 12px)`;
-    grid.style.gridAutoFlow = "row";
-    const monthFirstIndices = /* @__PURE__ */ new Map();
-    this.data.forEach((day, index) => {
-      if (day.date) {
-        const month = window.moment(day.date).month();
-        if (!monthFirstIndices.has(month)) {
-          monthFirstIndices.set(month, index);
-        }
-      }
-    });
-    const fragment = document.createDocumentFragment();
-    const isCurrentYear = this.currentYear === now.year();
-    this.data.forEach((day, index) => {
-      const cell = document.createElement("div");
-      cell.className = "diary-heatmap-cell";
-      const level = getHeatLevel(day.wordCount, this.getSettings().thresholds);
-      cell.classList.add(`level-${level}`);
-      cell.setAttribute("data-date", day.date);
-      cell.setAttribute("data-count", String(day.wordCount));
-      if (day.date) {
-        const month = window.moment(day.date).month();
-        if (monthFirstIndices.get(month) === index) {
-          const monthBadge = document.createElement("span");
-          monthBadge.className = "diary-heatmap-month-badge";
-          if (!isCurrentYear || month !== now.month()) {
-            monthBadge.classList.add("dimmed");
-          }
-          monthBadge.textContent = String(month + 1);
-          cell.appendChild(monthBadge);
-        }
-      }
-      const dateStr = day.date ? window.moment(day.date).format("M\u6708D\u65E5 dddd") : "";
-      cell.setAttribute("data-tip", `${dateStr}: ${day.wordCount}\u5B57`);
-      if (day.inYear === false) {
-        cell.classList.add("out-of-year");
-      } else if (day.exists) {
-        cell.classList.add("has-diary");
-        cell.addEventListener("click", () => {
-          this.openDiary(day.filePath);
-        });
-      } else if (day.date) {
-        cell.classList.add("no-diary");
-        cell.addEventListener("click", () => {
-          this.createDiary(day.date);
-        });
-      } else {
-        cell.classList.add("empty-cell");
-      }
-      fragment.appendChild(cell);
-    });
-    const totalGridCells = cols * rows;
-    for (let i = this.data.length; i < totalGridCells; i++) {
-      const cell = document.createElement("div");
-      cell.className = "diary-heatmap-cell empty-cell";
-      fragment.appendChild(cell);
-    }
-    grid.appendChild(fragment);
-    const yearStats = this.data.reduce(
-      (acc, d) => {
-        if (d.exists && d.date && window.moment(d.date).year() === this.currentYear) {
-          acc.diaryCount++;
-          acc.totalWords += d.wordCount;
-        }
-        return acc;
-      },
-      { diaryCount: 0, totalWords: 0 }
+    this.heatmapRenderer.render(
+      this.contentArea,
+      this.footerArea,
+      this.data,
+      this.currentYear,
+      this.plugin.settings.thresholds,
+      this.plugin.settings.weeklyFolder,
+      this.containerElRef.clientWidth - 16
     );
-    const weeklyPattern = new RegExp(`^${this.currentYear}-\u7B2C\\d{1,2}\u5468\\.md$`);
-    const weeklyCount = this.app.vault.getFiles().filter(
-      (f) => weeklyPattern.test(f.name)
-    ).length;
-    const bottomStats = wrapper.createDiv("diary-heatmap-bottom-stats");
-    bottomStats.createSpan({
-      cls: "diary-heatmap-stats-text",
-      text: `\u672C\u5E74\u5EA6\u5171\u5199 ${yearStats.diaryCount} \u7BC7\u65E5\u8BB0 \u2022 ${weeklyCount} \u7BC7\u5468\u8BB0 \u2022 \u5171\u8BA1 ${yearStats.totalWords} \u5B57`
-    });
-  }
-  renderCalendar() {
-    const wrapper = this.contentArea.createDiv(
-      "diary-heatmap-calendar-wrapper"
-    );
-    const showWeekNumbers = this.plugin.settings.showWeekNumbers;
-    const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const headerRow = wrapper.createDiv("diary-heatmap-calendar-header");
-    if (showWeekNumbers) {
-      headerRow.createDiv("diary-heatmap-calendar-header-spacer");
-    }
-    weekDays.forEach((d) => {
-      headerRow.createDiv("diary-heatmap-calendar-weekday").setText(d);
-    });
-    const gridArea = wrapper.createDiv("diary-heatmap-calendar-grid-area");
-    if (!showWeekNumbers) {
-      gridArea.classList.add("no-week-numbers");
-    }
-    const weeks = this.groupByWeeks(this.data);
-    const fragment = document.createDocumentFragment();
-    weeks.forEach((week, weekIndex) => {
-      const firstDayOfWeek = week.find((d) => d.date);
-      let weekNum = 0;
-      if (firstDayOfWeek) {
-        weekNum = window.moment(firstDayOfWeek.date).week();
-      }
-      if (showWeekNumbers) {
-        const weekLabelEl = document.createElement("div");
-        weekLabelEl.className = "diary-heatmap-calendar-week-label";
-        if (weekNum > 0) {
-          weekLabelEl.classList.add("week-number");
-          weekLabelEl.setAttribute("data-week-num", String(weekNum));
-          weekLabelEl.textContent = String(weekNum);
-          weekLabelEl.addEventListener("click", () => {
-            this.openOrCreateWeeklyDiary(this.calendarDate.year(), weekNum);
-          });
-          weekLabelEl.addEventListener("contextmenu", (evt) => {
-            evt.preventDefault();
-            this.showWeeklyContextMenu(evt, this.calendarDate.year(), weekNum);
-          });
-          if (this.weeklyExistsInMonth.has(weekNum)) {
-            const wordCount = this.weeklyWordCounts.get(weekNum) || 0;
-            const dots = this.getWeeklyDots(wordCount);
-            const dotContainer = document.createElement("div");
-            dotContainer.className = "weekly-dots";
-            dots.forEach((isSolid) => {
-              const dot = document.createElement("span");
-              dot.className = isSolid ? "weekly-dot solid" : "weekly-dot";
-              dotContainer.appendChild(dot);
-            });
-            weekLabelEl.appendChild(dotContainer);
-          }
-        }
-        fragment.appendChild(weekLabelEl);
-      }
-      week.forEach((dayData) => {
-        const cell = document.createElement("div");
-        cell.className = "diary-heatmap-calendar-cell";
-        if (!dayData.date) {
-          cell.classList.add("empty");
-          fragment.appendChild(cell);
-          return;
-        }
-        const date = window.moment(dayData.date);
-        const isCurrentMonth = date.month() === this.calendarDate.month() && date.year() === this.calendarDate.year();
-        const isToday = date.isSame(window.moment(), "day");
-        const dayNum = document.createElement("span");
-        dayNum.className = "day-number";
-        dayNum.textContent = date.format("D");
-        cell.appendChild(dayNum);
-        if (dayData.exists) {
-          const level = getHeatLevel(
-            dayData.wordCount,
-            this.getSettings().thresholds
-          );
-          cell.classList.add(`level-${level}`, "has-diary");
-          cell.setAttribute("data-tip", `${date.format("MMM D, dddd")}: ${dayData.wordCount}\u5B57`);
-          cell.setAttribute("data-file-path", dayData.filePath);
-          const dots = this.getWeeklyDots(dayData.wordCount);
-          const dotContainer = document.createElement("div");
-          dotContainer.className = "diary-dots";
-          dots.forEach((isSolid) => {
-            const dot = document.createElement("span");
-            dot.className = isSolid ? "diary-dot solid" : "diary-dot";
-            dotContainer.appendChild(dot);
-          });
-          cell.appendChild(dotContainer);
-        } else {
-          cell.classList.add("no-diary");
-        }
-        if (!isCurrentMonth) {
-          cell.classList.add("out-of-month");
-        }
-        if (isToday) {
-          cell.classList.add("is-today");
-        }
-        cell.addEventListener("click", () => {
-          if (dayData.exists) {
-            this.openDiary(dayData.filePath);
-          } else {
-            this.createDiary(dayData.date);
-          }
-        });
-        if (dayData.exists) {
-          cell.addEventListener("contextmenu", (evt) => {
-            evt.preventDefault();
-            this.showCalendarContextMenu(evt, dayData);
-          });
-        }
-        fragment.appendChild(cell);
-      });
-    });
-    gridArea.appendChild(fragment);
-    const stats = this.data.reduce(
-      (acc, d) => {
-        if (!d.date) return acc;
-        const date = window.moment(d.date);
-        if (date.month() === this.calendarDate.month() && date.year() === this.calendarDate.year()) {
-          acc.totalWords += d.wordCount;
-          if (d.exists) acc.diaryDays++;
-        }
-        return acc;
-      },
-      { diaryDays: 0, totalWords: 0 }
-    );
-    const calendarFooter = wrapper.createDiv("diary-heatmap-calendar-footer");
-    calendarFooter.createSpan({
-      cls: "diary-heatmap-calendar-footer-text",
-      text: `\u672C\u6708\u65E5\u8BB0 ${stats.diaryDays} \u7BC7 \xB7 \u5171\u8BA1 ${stats.totalWords} \u5B57`
-    });
-  }
-  /**
-   * 根据周记字数计算圆点状态
-   * 阈值：50、150、300、500
-   * 达到阈值显示实心，下一级显示虚线
-   */
-  getWeeklyDots(wordCount) {
-    const thresholds = [50, 150, 300, 500];
-    const dots = [];
-    for (const t of thresholds) {
-      if (wordCount >= t) {
-        dots.push(true);
-      } else {
-        dots.push(false);
-        break;
-      }
-    }
-    return dots;
-  }
-  groupByWeeks(data) {
-    const weeks = [];
-    let currentWeek = [];
-    data.forEach((day) => {
-      currentWeek.push(day);
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-      }
-    });
-    if (currentWeek.length > 0) {
-      while (currentWeek.length < 7) {
-        currentWeek.push({
-          date: "",
-          wordCount: 0,
-          exists: false,
-          filePath: ""
-        });
-      }
-      weeks.push(currentWeek);
-    }
-    const MIN_WEEKS = 6;
-    while (weeks.length < MIN_WEEKS) {
-      const emptyWeek = [];
-      for (let i = 0; i < 7; i++) {
-        emptyWeek.push({
-          date: "",
-          wordCount: 0,
-          exists: false,
-          filePath: ""
-        });
-      }
-      weeks.push(emptyWeek);
-    }
-    return weeks;
-  }
-  getMonthLabels() {
-    const months = [];
-    let currentMonth = -1;
-    this.data.forEach((day, index) => {
-      if (day.date) {
-        const month = window.moment(day.date).month();
-        if (month !== currentMonth && index % 7 === 0) {
-          months.push({
-            label: window.moment(day.date).format("M\u6708"),
-            col: Math.floor(index / 7) + 1
-          });
-          currentMonth = month;
-        }
-      }
-    });
-    return months;
-  }
-  showCalendarContextMenu(evt, dayData) {
-    const file = this.app.vault.getAbstractFileByPath(dayData.filePath);
-    if (!(file instanceof import_obsidian4.TFile)) return;
-    const menu = new import_obsidian4.Menu();
-    menu.addItem(
-      (item) => item.setTitle("\u6253\u5F00\u65E5\u8BB0").setIcon("file-text").onClick(() => this.openDiary(dayData.filePath))
-    );
-    menu.addItem(
-      (item) => item.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("copy").onClick(() => {
-        navigator.clipboard.writeText(dayData.filePath);
-        new import_obsidian4.Notice("\u8DEF\u5F84\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F");
-      })
-    );
-    menu.addSeparator();
-    menu.addItem(
-      (item) => item.setTitle("\u5220\u9664\u65E5\u8BB0").setIcon("trash").onClick(async () => {
-        await this.app.fileManager.trashFile(file);
-        this.cache.invalidate(dayData.filePath);
-        this.debouncedRefresh();
-        new import_obsidian4.Notice("\u65E5\u8BB0\u5DF2\u79FB\u81F3\u56DE\u6536\u7AD9");
-      })
-    );
-    menu.showAtMouseEvent(evt);
-  }
-  async showWeeklyContextMenu(evt, year, week) {
-    const weeklyFolder = this.plugin.settings.weeklyFolder ? (0, import_obsidian4.normalizePath)(this.plugin.settings.weeklyFolder) : "";
-    const config = await this.getConfig();
-    const diaryFolder = getFolderPath(config);
-    const folder = weeklyFolder || diaryFolder;
-    const fileName = `${year}-\u7B2C${week}\u5468.md`;
-    const filePath = folder ? (0, import_obsidian4.normalizePath)(`${folder}/${fileName}`) : fileName;
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (file instanceof import_obsidian4.TFile) {
-      const menu = new import_obsidian4.Menu();
-      menu.addItem(
-        (item) => item.setTitle("\u6253\u5F00\u5468\u8BB0").setIcon("file-text").onClick(() => this.openDiary(filePath))
-      );
-      menu.addItem(
-        (item) => item.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("copy").onClick(() => {
-          navigator.clipboard.writeText(filePath);
-          new import_obsidian4.Notice("\u8DEF\u5F84\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F");
-        })
-      );
-      menu.addSeparator();
-      menu.addItem(
-        (item) => item.setTitle("\u5220\u9664\u5468\u8BB0").setIcon("trash").onClick(async () => {
-          await this.app.fileManager.trashFile(file);
-          this.debouncedRefresh();
-          new import_obsidian4.Notice("\u5468\u8BB0\u5DF2\u79FB\u81F3\u56DE\u6536\u7AD9");
-        })
-      );
-      menu.showAtMouseEvent(evt);
-    } else {
-      const menu = new import_obsidian4.Menu();
-      menu.addItem(
-        (item) => item.setTitle("\u521B\u5EFA\u5468\u8BB0").setIcon("plus").onClick(() => this.openOrCreateWeeklyDiary(year, week))
-      );
-      menu.showAtMouseEvent(evt);
-    }
   }
   highlightActiveDiary() {
     const activeFile = this.app.workspace.getActiveFile();
@@ -1001,121 +1272,19 @@ var HeatmapView = class extends import_obsidian4.ItemView {
     }
     const weeklyMatch = activeFile.name.match(/^(\d{4})-第(\d{1,2})周\.md$/);
     if (weeklyMatch) {
-      const year = parseInt(weeklyMatch[1]);
       const week = parseInt(weeklyMatch[2]);
-      if (year === this.calendarDate.year()) {
-        const weekLabel = this.contentArea.querySelector(
-          `.diary-heatmap-calendar-week-label[data-week-num="${week}"]`
-        );
-        if (weekLabel) {
-          weekLabel.classList.add("is-active-week");
-        }
+      const weekLabel = this.contentArea.querySelector(
+        `.diary-heatmap-calendar-week-label[data-week-num="${week}"]`
+      );
+      if (weekLabel) {
+        weekLabel.classList.add("is-active-week");
       }
     }
-  }
-  openDiary(filePath) {
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (file instanceof import_obsidian4.TFile) {
-      this.app.workspace.getLeaf().openFile(file);
-    }
-  }
-  async createDiary(dateStr) {
-    const config = await this.getConfig();
-    const date = window.moment(dateStr, "YYYY-MM-DD");
-    const filePath = getDiaryFilePath(date, config);
-    const existing = this.app.vault.getAbstractFileByPath(filePath);
-    if (existing instanceof import_obsidian4.TFile) {
-      this.app.workspace.getLeaf().openFile(existing);
-      return;
-    }
-    const formattedDate = date.format("YYYY\u5E74M\u6708D\u65E5");
-    new ConfirmModal(
-      this.app,
-      `\u662F\u5426\u521B\u5EFA ${formattedDate} \u7684\u65E5\u8BB0\uFF1F`,
-      async () => {
-        try {
-          let content = "";
-          if (config.template) {
-            content = await readTemplateContent(this.app, config.template);
-          }
-          const dayOfWeek = date.format("dddd");
-          content = content.replace(/\{\{date\}\}/g, formattedDate).replace(/\{\{title\}\}/g, formattedDate).replace(/\{\{time\}\}/g, date.format("HH:mm")).replace(/\{\{date:([^}]+)\}\}/g, (_, fmt) => date.format(fmt)).replace(/\{\{time:([^}]+)\}\}/g, (_, fmt) => date.format(fmt)).replace(/\{\{yesterday\}\}/g, date.clone().subtract(1, "day").format("YYYY\u5E74M\u6708D\u65E5")).replace(/\{\{tomorrow\}\}/g, date.clone().add(1, "day").format("YYYY\u5E74M\u6708D\u65E5"));
-          if (!content.trim()) {
-            content = "";
-          }
-          const folder = getFolderPath(config);
-          if (folder && !await this.app.vault.adapter.exists(folder)) {
-            await this.app.vault.createFolder(folder);
-          }
-          const newFile = await this.app.vault.create(filePath, content);
-          this.app.workspace.getLeaf().openFile(newFile);
-          new import_obsidian4.Notice(`\u5DF2\u521B\u5EFA\u65E5\u8BB0: ${formattedDate}`);
-        } catch (e) {
-          console.error(`[Diary Heatmap] Failed to create diary:`, e);
-          new import_obsidian4.Notice("\u521B\u5EFA\u65E5\u8BB0\u5931\u8D25");
-        }
-      }
-    ).open();
-  }
-  async openOrCreateWeeklyDiary(year, week) {
-    const weeklyFolder = this.plugin.settings.weeklyFolder ? (0, import_obsidian4.normalizePath)(this.plugin.settings.weeklyFolder) : "";
-    const config = await this.getConfig();
-    const diaryFolder = getFolderPath(config);
-    const folder = weeklyFolder || diaryFolder;
-    const fileName = `${year}-\u7B2C${week}\u5468.md`;
-    const filePath = folder ? (0, import_obsidian4.normalizePath)(`${folder}/${fileName}`) : fileName;
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (file instanceof import_obsidian4.TFile) {
-      this.app.workspace.getLeaf().openFile(file);
-      return;
-    }
-    new ConfirmModal(
-      this.app,
-      `\u662F\u5426\u521B\u5EFA ${year}\u5E74\u7B2C${week}\u5468\u7684\u5468\u8BB0\uFF1F`,
-      async () => {
-        try {
-          const content = "";
-          if (folder && !await this.app.vault.adapter.exists(folder)) {
-            await this.app.vault.createFolder(folder);
-          }
-          const newFile = await this.app.vault.create(filePath, content);
-          this.app.workspace.getLeaf().openFile(newFile);
-          new import_obsidian4.Notice(`\u5DF2\u521B\u5EFA\u5468\u8BB0: ${year}\u5E74\u7B2C${week}\u5468`);
-        } catch (e) {
-          console.error(`[Diary Heatmap] Failed to create weekly note:`, e);
-          new import_obsidian4.Notice("\u521B\u5EFA\u5468\u8BB0\u5931\u8D25");
-        }
-      }
-    ).open();
-  }
-};
-var ConfirmModal = class extends import_obsidian4.Modal {
-  constructor(app, message, onConfirm) {
-    super(app);
-    this.message = message;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("p", { text: this.message });
-    const buttonContainer = contentEl.createDiv({
-      cls: "modal-button-container"
-    });
-    new import_obsidian4.ButtonComponent(buttonContainer).setButtonText("\u53D6\u6D88").onClick(() => {
-      this.close();
-    });
-    new import_obsidian4.ButtonComponent(buttonContainer).setButtonText("\u521B\u5EFA").setCta().onClick(() => {
-      this.onConfirm();
-      this.close();
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
   }
 };
 
 // src/main.ts
-var DiaryHeatmapPlugin = class extends import_obsidian5.Plugin {
+var DiaryHeatmapPlugin = class extends import_obsidian8.Plugin {
   async onload() {
     await this.loadSettings();
     console.log("[Calendar Pro] Plugin loaded v1.3.0");
@@ -1175,7 +1344,21 @@ var DiaryHeatmapPlugin = class extends import_obsidian5.Plugin {
     console.log("[Calendar Pro] Plugin unloaded");
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    this.settings.thresholds = this.validateThresholds(this.settings.thresholds);
+  }
+  validateThresholds(thresholds) {
+    if (!Array.isArray(thresholds) || thresholds.length !== 5) {
+      return [...DEFAULT_SETTINGS.thresholds];
+    }
+    const valid = thresholds.map((t) => Math.max(1, Math.round(Number(t))));
+    for (let i = 1; i < valid.length; i++) {
+      if (valid[i] <= valid[i - 1]) {
+        valid[i] = valid[i - 1] + 50;
+      }
+    }
+    return valid;
   }
   async saveSettings() {
     await this.saveData(this.settings);
