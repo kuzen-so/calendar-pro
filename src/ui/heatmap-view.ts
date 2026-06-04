@@ -252,6 +252,7 @@ export class HeatmapView extends ItemView {
     } finally {
       this.loadingEl.hide();
       this.isLoading = false;
+      this.highlightActiveDiary();
     }
   }
 
@@ -314,9 +315,7 @@ export class HeatmapView extends ItemView {
     const now = window.moment();
     let isToday = false;
     if (this.viewMode === "calendar") {
-      isToday =
-        this.calendarDate.year() === now.year() &&
-        this.calendarDate.month() === now.month();
+      isToday = false; // 日历视图始终可用，即使用户已在当月也可能需要回到今天
     } else {
       isToday = this.currentYear === now.year();
     }
@@ -409,6 +408,7 @@ export class HeatmapView extends ItemView {
       this.calendarDate = window.moment();
       this.currentYear = window.moment().year();
       this.debouncedRefresh();
+      this.diaryService.createDiary(window.moment().format("YYYY-MM-DD"));
     });
 
     // 分段控制器切换按钮
