@@ -220,7 +220,7 @@ export class HeatmapView extends ItemView {
       // 更新标题：日历和热力图统一显示 ◀ 月份 年份 ▶
       if (this.monthDisplayEl) {
         this.monthDisplayEl.style.display = "";
-        this.monthDisplayEl.setText(this.calendarDate.format("MMM"));
+        this.monthDisplayEl.setText(this.calendarDate.clone().locale("en").format("MMM"));
       }
       if (this.yearDisplayEl) {
         this.yearDisplayEl.style.display = "";
@@ -365,7 +365,7 @@ export class HeatmapView extends ItemView {
     setIcon(prevBtn, "chevron-left");
 
     this.monthDisplayEl = leftGroup.createSpan({
-      text: this.calendarDate.format("MMM"),
+      text: this.calendarDate.clone().locale("en").format("MMM"),
       cls: "diary-heatmap-month-text",
     });
     this.yearDisplayEl = leftGroup.createSpan({
