@@ -142,6 +142,14 @@ export class HeatmapSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.showWeekNumbers = value;
             await this.plugin.saveSettings();
+            // 刷新所有打开的 Calendar Pro 视图
+            const leaves = this.plugin.app.workspace.getLeavesOfType("diary-heatmap-view");
+            leaves.forEach((leaf) => {
+              const view = leaf.view as any;
+              if (view.debouncedRefresh) {
+                view.debouncedRefresh();
+              }
+            });
           })
       );
 
