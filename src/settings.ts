@@ -96,19 +96,6 @@ export class HeatmapSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("周记文件夹")
-      .setDesc("周记存放的文件夹路径，留空则与日记共用同一文件夹")
-      .addText((text) =>
-        text
-          .setPlaceholder("例如: Weekly 或 周记")
-          .setValue(this.plugin.settings.weeklyFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.weeklyFolder = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName("周开始日")
       .setDesc("日历视图以星期几作为一周的开始")
       .addDropdown((dropdown) =>
@@ -150,6 +137,19 @@ export class HeatmapSettingTab extends PluginSettingTab {
                 view.debouncedRefresh();
               }
             });
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("周记文件夹")
+      .setDesc("周记存放的文件夹路径，留空则与日记共用同一文件夹")
+      .addText((text) =>
+        text
+          .setPlaceholder("例如: Weekly 或 周记")
+          .setValue(this.plugin.settings.weeklyFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.weeklyFolder = value;
+            await this.plugin.saveSettings();
           })
       );
 
