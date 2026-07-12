@@ -7,27 +7,28 @@
     800
   ],
   "colors": [
-    "#ddf4e0",
-    "#9be9a8",
-    "#40c463",
-    "#216e39",
-    "#0e4429",
-    "#052814"
+    "#e8f1f8",
+    "#c5d9e8",
+    "#9bbfd4",
+    "#729eb8",
+    "#4f7d9a",
+    "#2f5c78"
   ],
   "darkColors": [
-    "#0e4429",
-    "#006d32",
-    "#26a641",
-    "#39d353",
-    "#56d364",
-    "#7ee787"
+    "#2f5c78",
+    "#3d7594",
+    "#558fb0",
+    "#7ab0cc",
+    "#a8d0e6",
+    "#d6eaf5"
   ],
   "defaultYear": "current",
   "customFolder": "",
   "customFormat": "YYYY-MM-DD",
   "useCustomConfig": false,
   "weeklyFolder": "97-Weeks",
-  "weekStart": 1,
+  "weekStart": 0,
   "showWeekNumbers": true,
-  "heatmapRows": 11
+  "defaultView": "combined",
+  "colorTheme": "morandi-blue"
 }

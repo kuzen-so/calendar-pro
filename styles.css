@@ -105,8 +105,8 @@
 .diary-heatmap-today-btn {
   background: var(--text-accent);
   border: none;
-  border-radius: 9999px;
-  padding: 5px;
+  border-radius: 8px;
+  padding: 5px 8px;
   cursor: pointer;
   line-height: 1;
   color: var(--background-primary);
@@ -115,14 +115,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
+  min-width: 54px;
   height: 26px;
-}
-
-.diary-heatmap-today-btn svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.5;
+  font-size: 11px;
+  font-weight: 700;
+  justify-self: end;
 }
 
 .diary-heatmap-today-btn:hover {
@@ -685,8 +682,9 @@
 
 .diary-heatmap-stats-text {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-weight: 500;
+  opacity: 0.75;
 }
 
 /* Heatmap legend */
@@ -722,5 +720,31 @@
   font-size: 12px;
   color: var(--text-faint);
   font-style: italic;
+}
+
+/* 合并视图：日历在上，热力图在下 */
+.diary-heatmap-combined-calendar {
+  margin-bottom: 8px;
+}
+
+.diary-heatmap-combined-heatmap {
+  padding-top: 0;
+}
+
+.diary-heatmap-combined-heatmap .diary-heatmap-grid .diary-heatmap-cell {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/* 隐藏 Calendar Pro 视图本身的滚动条（合并视图需要） */
+.workspace-leaf-content[data-type="diary-heatmap-view"] .view-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.workspace-leaf-content[data-type="diary-heatmap-view"]
+  .view-content::-webkit-scrollbar {
+  display: none;
 }
 
