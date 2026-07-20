@@ -867,8 +867,8 @@ async function de(o, t, e, a, i = 1) {
 async function Se(o, t, e, a, i = 1) {
   let s = window.moment([e, a]),
     r = s.clone().endOf("month"),
-    n = O(s, i, !1),
-    l = O(r, i, !0),
+    n = O(s.clone().subtract(15, "days"), i, !1),
+    l = O(r.clone().add(15, "days"), i, !0),
     p = await o.getRangeData(t, n, l);
   return (
     p.forEach((d) => {
@@ -930,8 +930,7 @@ var U = class {
       M = Math.ceil(C / x);
     (M > u && ((x = Math.ceil(C / u)), (M = u)),
       M < h && ((x = Math.ceil(C / h)), (M = h)),
-      J && ((x = 7), (M = Math.ceil(C / 7))),
-      (_.style.gridTemplateColumns = V || J
+      (_.style.gridTemplateColumns = V
         ? `repeat(${x}, minmax(12px, 1fr))`
         : `repeat(${x}, 12px)`),
       (_.style.gridAutoFlow = "row"));
@@ -956,7 +955,7 @@ var U = class {
         c.date)
       ) {
         let te = window.moment(c.date).month();
-        if (F.get(te) === y && (!J || c.inYear !== !1)) {
+        if (F.get(te) === y) {
           let j = document.createElement("span");
           ((j.className = "diary-heatmap-month-badge"),
             (!R || te !== g.month()) && j.classList.add("dimmed"),
