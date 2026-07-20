@@ -1561,8 +1561,10 @@ var T = "diary-heatmap-view",
           .createDiv("diary-heatmap-header")
           .createDiv("diary-heatmap-title-row"),
         i = a.createDiv("diary-heatmap-title-group"),
+        s2 = i.createEl("button", { cls: "diary-heatmap-nav-btn" }),
         s = i.createEl("button", { cls: "diary-heatmap-nav-btn" });
-      ((0, b.setIcon)(s, "chevron-left"),
+      ((0, b.setIcon)(s2, "chevrons-left"),
+        (0, b.setIcon)(s, "chevron-left"),
         (this.monthDisplayEl = i.createSpan({
           text: this.calendarDate.clone().locale("en").format("MMM"),
           cls: "diary-heatmap-month-text",
@@ -1574,8 +1576,17 @@ var T = "diary-heatmap-view",
               : this.calendarDate.format("YYYY"),
           cls: "diary-heatmap-year-text",
         })));
-      let r = i.createEl("button", { cls: "diary-heatmap-nav-btn" });
+      let r = i.createEl("button", { cls: "diary-heatmap-nav-btn" }),
+        r2 = i.createEl("button", { cls: "diary-heatmap-nav-btn" });
       ((0, b.setIcon)(r, "chevron-right"),
+        (0, b.setIcon)(r2, "chevrons-right"),
+        s2.addEventListener("click", () => {
+          (this.viewMode === "heatmap" &&
+          !this.plugin.settings.heatmapMonthView
+            ? this.currentYear--
+            : this.calendarDate.subtract(1, "year"),
+            this.debouncedRefresh());
+        }),
         s.addEventListener("click", () => {
           (this.viewMode === "heatmap" &&
           !this.plugin.settings.heatmapMonthView
@@ -1588,6 +1599,13 @@ var T = "diary-heatmap-view",
           !this.plugin.settings.heatmapMonthView
             ? this.currentYear++
             : this.calendarDate.add(1, "month"),
+            this.debouncedRefresh());
+        }),
+        r2.addEventListener("click", () => {
+          (this.viewMode === "heatmap" &&
+          !this.plugin.settings.heatmapMonthView
+            ? this.currentYear++
+            : this.calendarDate.add(1, "year"),
             this.debouncedRefresh());
         }));
       (this.todayBtn = a.createEl("button", {
