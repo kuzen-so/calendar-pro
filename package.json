@@ -1,6 +1,6 @@
 {
   "name": "calendar-pro",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "日历视图结合热力图，支持日记与周记管理",
   "main": "main.js",
   "scripts": {

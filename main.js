@@ -888,7 +888,7 @@ var U = class {
       (this.lastColors = []),
       (this.lastDarkColors = []);
   }
-  render(t, e, a, i, s, r, n, l, p, d, V = !1, J = !1) {
+  render(t, e, a, i, s, r, n, l, p, d, V = !1, J = !1, Z) {
     let D = document.body.classList.contains("theme-dark") ? n : r;
     (this.lastData = a),
       (this.lastYear = i),
@@ -994,7 +994,7 @@ var U = class {
           ? this.diaryService.openDiary($.filePath)
           : $.inYear !== !1 && this.diaryService.createDiary($.date));
     });
-    let N = a.reduce(
+    let N = (Z || a).reduce(
       (c, y) => (
         y.exists &&
           y.date &&
@@ -1006,7 +1006,11 @@ var U = class {
     );
     f.createDiv("diary-heatmap-bottom-stats").createSpan({
       cls: "diary-heatmap-stats-text",
-      text: `\u672C\u5E74\u5EA6\u5171\u5199 ${N.diaryCount} \u7BC7\u65E5\u8BB0 \u2022 ${d} \u7BC7\u5468\u8BB0 \u2022 \u5171\u8BA1 ${N.totalWords} \u5B57`,
+      text:
+        `${i}\u5E74\u5EA6\u5171\u5199 ${N.diaryCount} \u7BC7\u65E5\u8BB0\u3002${d} \u7BC7\u5468\u8BB0\u3002\u5171\u8BA1 ${N.totalWords} \u5B57` +
+        (i === g.year()
+          ? `\u3002\u672C\u5E74\u5EA6\u8FD8\u5269\u4F59 ${Math.max(0, window.moment(`${i}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss").diff(g, "days"))} \u5929`
+          : ""),
     });
     let W = f.createDiv("diary-heatmap-legend-row");
     W.createSpan({ cls: "diary-heatmap-legend-label", text: "\u5C11" });
@@ -1651,6 +1655,12 @@ var T = "diary-heatmap-view",
               this.calendarDate.year(),
               this.calendarDate.month(),
               this.plugin.settings.weekStart,
+            )),
+            (this.yearStatsData = await le(
+              this.cache,
+              e,
+              this.currentYear,
+              this.plugin.settings.weekStart,
             )))
           : (this.heatmapData =
               this.currentYear === window.moment().year() &&
@@ -1684,6 +1694,7 @@ var T = "diary-heatmap-view",
           e,
           !1,
           this.plugin.settings.heatmapMonthView,
+          this.plugin.settings.heatmapMonthView ? this.yearStatsData : void 0,
         );
       } else if (this.viewMode === "combined") {
         let e = this.getWeeklyCount(this.currentYear),
@@ -1717,6 +1728,7 @@ var T = "diary-heatmap-view",
             e,
             !0,
             this.plugin.settings.heatmapMonthView,
+            this.plugin.settings.heatmapMonthView ? this.yearStatsData : void 0,
           );
       } else
         this.calendarRenderer.render(
@@ -1748,6 +1760,7 @@ var T = "diary-heatmap-view",
           e,
           !1,
           this.plugin.settings.heatmapMonthView,
+          this.plugin.settings.heatmapMonthView ? this.yearStatsData : void 0,
         );
       else if (
         this.viewMode === "combined" &&
@@ -1768,6 +1781,7 @@ var T = "diary-heatmap-view",
             e,
             !0,
             this.plugin.settings.heatmapMonthView,
+            this.plugin.settings.heatmapMonthView ? this.yearStatsData : void 0,
           );
       }
     }

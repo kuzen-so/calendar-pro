@@ -1,7 +1,7 @@
 {
 	"id": "calendar-pro",
 	"name": "Calendar Pro",
-	"version": "1.5.0",
+	"version": "1.5.1",
 	"minAppVersion": "0.15.0",
 	"description": "A calendar view combined with a heatmap for diary and weekly note management.",
 	"author": "Kuzen",
