@@ -42,6 +42,7 @@ var Y = require("obsidian"),
     weekStart: 1,
     showWeekNumbers: !0,
     defaultView: "calendar",
+    heatmapMonthView: !1,
     colorTheme: "green",
   },
   Me = {
@@ -278,6 +279,23 @@ var Y = require("obsidian"),
                       l &&
                         ((l.viewMode = s),
                         l.debouncedRefresh && l.debouncedRefresh());
+                    }));
+              }),
+          ),
+        new Y.Setting(t)
+          .setName("\u70ED\u529B\u56FE\u6708\u89C6\u56FE")
+          .setDesc("\u5F00\u542F\u540E\u70ED\u529B\u56FE\u53EA\u663E\u793A\u5F53\u524D\u6708\uFF087 \u5217\u6309\u5468\u5BF9\u9F50\uFF09\uFF0C\u5E76\u8DDF\u968F\u6708\u4EFD\u5207\u6362\uFF1B\u5173\u95ED\u5219\u4E3A\u6574\u5E74\u89C6\u56FE")
+          .addToggle((i) =>
+            i
+              .setValue(this.plugin.settings.heatmapMonthView)
+              .onChange(async (s) => {
+                ((this.plugin.settings.heatmapMonthView = s),
+                  await this.plugin.saveSettings(),
+                  this.plugin.app.workspace
+                    .getLeavesOfType("diary-heatmap-view")
+                    .forEach((n) => {
+                      let l = n.view;
+                      l && l.debouncedRefresh && l.debouncedRefresh();
                     }));
               }),
           ),
@@ -846,6 +864,19 @@ async function de(o, t, e, a, i = 1) {
     d = l.diff(n, "days") + 1;
   return (d < p && (l = l.clone().add(p - d, "days")), o.getRangeData(t, n, l));
 }
+async function Se(o, t, e, a, i = 1) {
+  let s = window.moment([e, a]),
+    r = s.clone().endOf("month"),
+    n = O(s, i, !1),
+    l = O(r, i, !0),
+    p = await o.getRangeData(t, n, l);
+  return (
+    p.forEach((d) => {
+      d.date && window.moment(d.date).month() !== a && (d.inYear = !1);
+    }),
+    p
+  );
+}
 var U = class {
   constructor(t, e) {
     (this.app = t),
@@ -857,7 +888,7 @@ var U = class {
       (this.lastColors = []),
       (this.lastDarkColors = []);
   }
-  render(t, e, a, i, s, r, n, l, p, d, V = !1) {
+  render(t, e, a, i, s, r, n, l, p, d, V = !1, J = !1) {
     let D = document.body.classList.contains("theme-dark") ? n : r;
     (this.lastData = a),
       (this.lastYear = i),
@@ -868,7 +899,10 @@ var U = class {
     let f = t.createDiv("diary-heatmap-grid-wrapper"),
       g = window.moment(),
       k = "";
-    if (i === g.year()) {
+    if (J) {
+      let c = a.find((y) => y.inYear !== !1 && y.date);
+      c && (k = window.moment(c.date).format("YYYY年M月"));
+    } else if (i === g.year()) {
       let c = window.moment(`${i}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss"),
         y = Math.max(0, c.diff(g, "months")),
         w = Math.max(0, c.diff(g, "days")),
@@ -896,7 +930,8 @@ var U = class {
       M = Math.ceil(C / x);
     (M > u && ((x = Math.ceil(C / u)), (M = u)),
       M < h && ((x = Math.ceil(C / h)), (M = h)),
-      (_.style.gridTemplateColumns = V
+      J && ((x = 7), (M = Math.ceil(C / 7))),
+      (_.style.gridTemplateColumns = V || J
         ? `repeat(${x}, minmax(12px, 1fr))`
         : `repeat(${x}, 12px)`),
       (_.style.gridAutoFlow = "row"));
@@ -921,7 +956,7 @@ var U = class {
         c.date)
       ) {
         let te = window.moment(c.date).month();
-        if (F.get(te) === y) {
+        if (F.get(te) === y && (!J || c.inYear !== !1)) {
           let j = document.createElement("span");
           ((j.className = "diary-heatmap-month-badge"),
             (!R || te !== g.month()) && j.classList.add("dimmed"),
@@ -1361,13 +1396,15 @@ var T = "diary-heatmap-view",
         (this.keydownHandler = (e) => {
           e.key === "ArrowLeft"
             ? (e.preventDefault(),
-              this.viewMode === "heatmap"
+              this.viewMode === "heatmap" &&
+              !this.plugin.settings.heatmapMonthView
                 ? this.currentYear--
                 : this.calendarDate.subtract(1, "month"),
               this.debouncedRefresh())
             : e.key === "ArrowRight" &&
               (e.preventDefault(),
-              this.viewMode === "heatmap"
+              this.viewMode === "heatmap" &&
+              !this.plugin.settings.heatmapMonthView
                 ? this.currentYear++
                 : this.calendarDate.add(1, "month"),
               this.debouncedRefresh());
@@ -1537,13 +1574,15 @@ var T = "diary-heatmap-view",
       let r = i.createEl("button", { cls: "diary-heatmap-nav-btn" });
       ((0, b.setIcon)(r, "chevron-right"),
         s.addEventListener("click", () => {
-          (this.viewMode === "heatmap"
+          (this.viewMode === "heatmap" &&
+          !this.plugin.settings.heatmapMonthView
             ? this.currentYear--
             : this.calendarDate.subtract(1, "month"),
             this.debouncedRefresh());
         }),
         r.addEventListener("click", () => {
-          (this.viewMode === "heatmap"
+          (this.viewMode === "heatmap" &&
+          !this.plugin.settings.heatmapMonthView
             ? this.currentYear++
             : this.calendarDate.add(1, "month"),
             this.debouncedRefresh());
@@ -1605,20 +1644,29 @@ var T = "diary-heatmap-view",
         this.viewMode === "heatmap" ||
         this.viewMode === "combined"
       ) {
-        this.heatmapData =
-          this.currentYear === window.moment().year() &&
-          this.plugin.settings.defaultYear === "recent"
-            ? await ce(
-                this.cache,
-                e,
-                this.plugin.settings.weekStart,
-              )
-            : await le(
-                this.cache,
-                e,
-                this.currentYear,
-                this.plugin.settings.weekStart,
-              );
+        this.plugin.settings.heatmapMonthView
+          ? ((this.currentYear = this.calendarDate.year()),
+            (this.heatmapData = await Se(
+              this.cache,
+              e,
+              this.calendarDate.year(),
+              this.calendarDate.month(),
+              this.plugin.settings.weekStart,
+            )))
+          : (this.heatmapData =
+              this.currentYear === window.moment().year() &&
+              this.plugin.settings.defaultYear === "recent"
+                ? await ce(
+                    this.cache,
+                    e,
+                    this.plugin.settings.weekStart,
+                  )
+                : await le(
+                    this.cache,
+                    e,
+                    this.currentYear,
+                    this.plugin.settings.weekStart,
+                  ));
       }
     }
     async renderContent() {
@@ -1635,6 +1683,8 @@ var T = "diary-heatmap-view",
           this.plugin.settings.weeklyFolder,
           this.containerElRef.clientWidth - 16,
           e,
+          !1,
+          this.plugin.settings.heatmapMonthView,
         );
       } else if (this.viewMode === "combined") {
         let e = this.getWeeklyCount(this.currentYear),
@@ -1667,6 +1717,7 @@ var T = "diary-heatmap-view",
             this.containerElRef.clientWidth - 16,
             e,
             !0,
+            this.plugin.settings.heatmapMonthView,
           );
       } else
         this.calendarRenderer.render(
@@ -1696,6 +1747,8 @@ var T = "diary-heatmap-view",
           this.plugin.settings.weeklyFolder,
           this.containerElRef.clientWidth - 16,
           e,
+          !1,
+          this.plugin.settings.heatmapMonthView,
         );
       else if (
         this.viewMode === "combined" &&
@@ -1715,6 +1768,7 @@ var T = "diary-heatmap-view",
             this.containerElRef.clientWidth - 16,
             e,
             !0,
+            this.plugin.settings.heatmapMonthView,
           );
       }
     }
