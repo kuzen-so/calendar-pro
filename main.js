@@ -216,9 +216,6 @@ var Y = require("obsidian"),
               .onChange(async (s) => {
                 ((this.plugin.settings.weekStart = parseInt(s)),
                   await this.plugin.saveSettings(),
-                  window.moment.updateLocale(window.moment.locale(), {
-                    week: { dow: parseInt(s) },
-                  }),
                   this.plugin.app.workspace
                     .getLeavesOfType("diary-heatmap-view")
                     .forEach((n) => {
@@ -399,7 +396,7 @@ var Y = require("obsidian"),
           (d.style.border = "none"),
           (d.style.background = "none"),
           (d.style.cursor = "pointer"),
-          d.addEventListener("input", async () => {
+          d.addEventListener("change", async () => {
             ((this.plugin.settings.colors[s] = d.value),
               await this.plugin.saveSettings());
           }));
@@ -420,7 +417,7 @@ var Y = require("obsidian"),
           (f.style.border = "none"),
           (f.style.background = "none"),
           (f.style.cursor = "pointer"),
-          f.addEventListener("input", async () => {
+          f.addEventListener("change", async () => {
             ((this.plugin.settings.darkColors[s] = f.value),
               await this.plugin.saveSettings());
           }));
@@ -841,6 +838,12 @@ function O(o, t, e) {
     s = o.clone().subtract(i, "days");
   return e ? s.add(6, "days") : s;
 }
+function getWeekInfo(o, t) {
+  let e = O(o.clone(), t, !1),
+    a = e.clone().add(5, "days").year(),
+    i = O(window.moment([a, 0, 1]), t, !1);
+  return { year: a, week: Math.floor(e.diff(i, "days") / 7) + 1 };
+}
 async function le(o, t, e, a = 1) {
   let i = window.moment(`${e}-01-01`, "YYYY-MM-DD"),
     s = window.moment(`${e}-12-31`, "YYYY-MM-DD"),
@@ -883,6 +886,7 @@ var U = class {
       (this.diaryService = e),
       (this.cellMap = new Map()),
       (this.lastData = []),
+      (this.lastStatsData = []),
       (this.lastYear = 0),
       (this.lastThresholds = []),
       (this.lastColors = []),
@@ -891,6 +895,7 @@ var U = class {
   render(t, e, a, i, s, r, n, l, p, d, V = !1, J = !1, Z) {
     let D = document.body.classList.contains("theme-dark") ? n : r;
     (this.lastData = a),
+      (this.lastStatsData = Z || a),
       (this.lastYear = i),
       (this.lastThresholds = s),
       (this.lastColors = r),
@@ -1047,7 +1052,8 @@ var U = class {
             : e.classList.add("empty-cell");
   }
   updateStats(t, e) {
-    let a = this.lastData.reduce(
+    let g = window.moment(),
+      a = (this.lastStatsData || this.lastData).reduce(
         (s, r) => (
           r.exists &&
             r.date &&
@@ -1060,7 +1066,10 @@ var U = class {
       i = t.querySelector(".diary-heatmap-bottom-stats span");
     i &&
       i.setText(
-        `\u672C\u5E74\u5EA6\u5171\u5199 ${a.diaryCount} \u7BC7\u65E5\u8BB0 \u2022 ${e} \u7BC7\u5468\u8BB0 \u2022 \u5171\u8BA1 ${a.totalWords} \u5B57`,
+        `${this.lastYear}年度共写 ${a.diaryCount} 篇日记。${e} 篇周记。共计 ${a.totalWords} 字` +
+          (this.lastYear === g.year()
+            ? `。本年度还剩余 ${Math.max(0, window.moment(`${this.lastYear}-12-31 23:59:59`, "YYYY-MM-DD HH:mm:ss").diff(g, "days"))} 天`
+            : ""),
       );
   }
 };
@@ -1098,14 +1107,20 @@ var Z = class {
       k = document.createDocumentFragment();
     (g.forEach((S) => {
       let H = S.find((h) => h.date),
-        C = 0;
-      if ((H && (C = window.moment(H.date).week()), i)) {
+        C = 0,
+        C2 = a.year();
+      if (H) {
+        let h2 = getWeekInfo(window.moment(H.date), l);
+        ((C = h2.week), (C2 = h2.year));
+      }
+      if (i) {
         let h = document.createElement("div");
         if (
           ((h.className = "diary-heatmap-calendar-week-label"),
           C > 0 &&
             (h.classList.add("week-number"),
             h.setAttribute("data-week-num", String(C)),
+            h.setAttribute("data-week-year", String(C2)),
             (h.textContent = String(C)),
             s.has(C)))
         ) {
@@ -1168,8 +1183,9 @@ var Z = class {
           ".diary-heatmap-calendar-week-label.week-number",
         );
         if (H) {
-          let C = parseInt(H.getAttribute("data-week-num"));
-          this.diaryService.openOrCreateWeeklyDiary(this.lastYear, C);
+          let C = parseInt(H.getAttribute("data-week-num")),
+            yr = parseInt(H.getAttribute("data-week-year")) || this.lastYear;
+          this.diaryService.openOrCreateWeeklyDiary(yr, C);
           return;
         }
         let ye = S.target.closest(".diary-heatmap-calendar-cell");
@@ -1188,8 +1204,9 @@ var Z = class {
         );
         if (H) {
           S.preventDefault();
-          let C = parseInt(H.getAttribute("data-week-num"));
-          this.diaryService.showWeeklyContextMenu(S, this.lastYear, C);
+          let C = parseInt(H.getAttribute("data-week-num")),
+            yr = parseInt(H.getAttribute("data-week-year")) || this.lastYear;
+          this.diaryService.showWeeklyContextMenu(S, yr, C);
           return;
         }
         let ye = S.target.closest(".diary-heatmap-calendar-cell");
@@ -1395,6 +1412,16 @@ var T = "diary-heatmap-view",
               this.handleFileChange(e);
           }),
         ),
+        this.registerEvent(
+          this.app.vault.on("rename", (e, a) => {
+            e instanceof b.TFile &&
+              e.extension === "md" &&
+              (this.cache.invalidate(a),
+              this.cache.invalidate(e.path),
+              this.weeklyCountCache.clear(),
+              this.debouncedRefresh());
+          }),
+        ),
         this.containerElRef.setAttribute("tabindex", "0"),
         (this.keydownHandler = (e) => {
           e.key === "ArrowLeft"
@@ -1507,12 +1534,15 @@ var T = "diary-heatmap-view",
       for (let l of this.calendarData) {
         if (!l.date) continue;
         let p = window.moment(l.date),
-          d = p.week();
+          { year: D2, week: d } = getWeekInfo(
+            p,
+            this.plugin.settings.weekStart,
+          );
         if (r.has(d)) continue;
         r.add(d);
-        let v = [`${this.calendarDate.year()}-\u7B2C${d}\u5468.md`],
-          D = p.weekYear();
-        (D !== this.calendarDate.year() && v.push(`${D}-\u7B2C${d}\u5468.md`),
+        let v = [`${D2}-\u7B2C${d}\u5468.md`];
+        (D2 !== this.calendarDate.year() &&
+          v.push(`${this.calendarDate.year()}-\u7B2C${d}\u5468.md`),
           n.push(
             (async () => {
               for (let f of v) {
@@ -1532,9 +1562,7 @@ var T = "diary-heatmap-view",
     updateTodayButtonState() {
       if (!this.todayBtn) return;
       let e = window.moment();
-      (this.todayBtn.setText(String(e.date())),
-        this.todayBtn.removeClass("is-disabled"),
-        (this.todayBtn.disabled = !1));
+      this.todayBtn.setText(String(e.date()));
     }
     getSettings() {
       return this.plugin.settings;
@@ -1613,8 +1641,7 @@ var T = "diary-heatmap-view",
       })),
         this.todayBtn.setText(String(window.moment().date())),
         this.todayBtn.addEventListener("click", () => {
-          this.todayBtn.hasClass("is-disabled") ||
-            ((this.calendarDate = window.moment()),
+          ((this.calendarDate = window.moment()),
             (this.currentYear = window.moment().year()),
             this.debouncedRefresh(),
             this.diaryService.createDiary(
@@ -1803,15 +1830,26 @@ var T = "diary-heatmap-view",
           );
       }
     }
+    isWeeklyNotePath(e) {
+      if (!/^\d{4}-第\d{1,2}周\.md$/.test(e.name)) return !1;
+      let t = this.plugin.settings.weeklyFolder
+        ? (0, b.normalizePath)(this.plugin.settings.weeklyFolder)
+        : "";
+      return !t || e.path.startsWith(t + "/");
+    }
     async handleFileChange(e) {
       if (!(e instanceof b.TFile && e.extension === "md")) return;
-      (this.cache.invalidate(e.path), this.weeklyCountCache.clear());
       let a = await this.getConfig(),
         i = this.pathToDate(e.path, a);
-      if (!i || !this.isDateInCurrentView(i)) {
-        this.debouncedRefresh(3e3);
+      if (!i) {
+        this.isWeeklyNotePath(e) &&
+          (this.cache.invalidate(e.path),
+          this.weeklyCountCache.clear(),
+          this.debouncedRefresh(3e3));
         return;
       }
+      if ((this.cache.invalidate(e.path), !this.isDateInCurrentView(i)))
+        return;
       await this.updateSingleDayData(i, a);
       let s = this.calendarData.find((r) => r.date === i),
         n = this.heatmapData.find((r) => r.date === i);
@@ -1877,7 +1915,9 @@ var T = "diary-heatmap-view",
               inYear: n[l].inYear,
             });
         };
-      r(this.calendarData), r(this.heatmapData);
+      (r(this.calendarData),
+        r(this.heatmapData),
+        this.yearStatsData && r(this.yearStatsData));
     }
     highlightActiveDiary() {
       let e = this.app.workspace.getActiveFile(),
@@ -1911,10 +1951,10 @@ var X = class extends he.Plugin {
     (await this.loadSettings(),
       (this._effectiveConfigCache = null),
       (this._effectiveConfigCacheTs = 0),
-      console.log("[Calendar Pro] Plugin loaded v1.3.0"),
+      console.log("[Calendar Pro] Plugin loaded v" + this.manifest.version),
       this.registerView(T, (t) => new Q(t, this)),
-      this.addRibbonIcon("calendar", "Calendar Pro", () => {
-        this.activateHeatmapView();
+      this.addRibbonIcon("calendar", "Calendar Pro: 打开/创建今日日记", () => {
+        this.openOrCreateTodayDiary();
       }),
       this.addCommand({
         id: "open-diary-heatmap",
@@ -1998,6 +2038,15 @@ var X = class extends he.Plugin {
     if (t.getLeavesOfType(T).length > 0) return;
     let e = t.getRightLeaf(!1);
     e && e.setViewState({ type: T });
+  }
+  openOrCreateTodayDiary() {
+    let t = window.moment().format("YYYY-MM-DD"),
+      e = this.app.workspace.getLeavesOfType(T),
+      a =
+        e.length > 0
+          ? e[0].view.diaryService
+          : new G(this.app, this, new J(this.app), () => {});
+    a.createDiary(t);
   }
   async activateHeatmapView() {
     let { workspace: t } = this.app,
