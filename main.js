@@ -136,6 +136,60 @@ var Y = require("obsidian"),
         "#ddd4e5",
       ],
     },
+    ink: {
+      colors: [
+        "#eef0f3",
+        "#d9dee6",
+        "#b3bcca",
+        "#8591a6",
+        "#525f7d",
+        "#232c42",
+      ],
+      darkColors: [
+        "#232c42",
+        "#525f7d",
+        "#8591a6",
+        "#b3bcca",
+        "#d9dee6",
+        "#eef0f3",
+      ],
+    },
+    terracotta: {
+      colors: [
+        "#f7efe7",
+        "#efdbc7",
+        "#e2bb99",
+        "#cb8f58",
+        "#a55c24",
+        "#6e3610",
+      ],
+      darkColors: [
+        "#54290d",
+        "#7e4218",
+        "#ad6630",
+        "#cf9660",
+        "#e8c49c",
+        "#f6e6d2",
+      ],
+    },
+    pine: {
+      colors: [
+        "#ecf2ed",
+        "#d2e2d6",
+        "#a6c8b0",
+        "#6fa683",
+        "#3d7d57",
+        "#174f31",
+      ],
+      darkColors: [
+        "#123d26",
+        "#1c5c3a",
+        "#3d8258",
+        "#6fae8b",
+        "#a9d4ba",
+        "#d9ecdf",
+      ],
+    },
   },
   q = class extends Y.PluginSettingTab {
     constructor(t, e) {
@@ -305,7 +359,10 @@ var Y = require("obsidian"),
               .addOption("morandi-blue", "\u83AB\u5170\u8FEA\u84DD")
               .addOption("morandi-pink", "\u83AB\u5170\u8FEA\u7C89")
               .addOption("morandi-orange", "\u83AB\u5170\u8FEA\u6A59")
-              .addOption("morandi-purple", "\u83AB\u5170\u8FEA\u7D2B")
+              .addOption("morandi-purple", "莫兰迪紫")
+              .addOption("ink", "墨（单色灰蓝）")
+              .addOption("terracotta", "赤陶（暖纸赭石）")
+              .addOption("pine", "松烟（沉稳绿）")
               .setValue(this.plugin.settings.colorTheme)
               .onChange(async (s) => {
                 let r = Me[s];
